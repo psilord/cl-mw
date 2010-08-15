@@ -1,0 +1,11 @@
+universe = scheduler
+executable = ./ping
+arguments = --mw-master --mw-slave-task-group 100 --mw-slave-result-group 100 --mw-resource-file resource-file.rsc --mw-slave-executable ping --mw-audit-file master.$(CLUSTER).$(PROCESS).audit --mw-member-id $(CLUSTER).$(PROCESS)
+
+output = master.out
+error = master.err
+log = master.log
+
+notification = NEVER
+
+queue 1

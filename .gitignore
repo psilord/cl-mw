@@ -1,0 +1,17 @@
+# Vim save files
+.*.swp
+
+# Emacs autosave files
+\#*#
+
+# Emacs backup files
+*~
+
+# Emacs lock files
+.#*
+
+# compiled lisp files
+*.fasl
+
+# A junk file particular to my project
+zzz.rsc

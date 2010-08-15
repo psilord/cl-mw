@@ -1,0 +1,131 @@
+0. Acknowledgements
+
+1. Downloading and Installing
+	1. Where to find
+	2. Supported implementations
+		1. SBCL
+	3. How to install
+
+2. Overview
+	A. Background on Master-Worker Paradigm
+		1. General architecture
+			1. Master
+			2. Slaves
+			3. Tasks & results
+			4. Robustness
+				1. Slave churn
+				2. Reclaiming of disconnected tasks
+				3. Checkpointing the computation (CL-MW does NOT do this yet).
+		2. Environment
+			1. High slave churn
+			2. Under a batch system or other controller
+		3. Slave Algorithm
+			1. Unordered Slaves
+			2. Sequential Slaves
+
+	B. CL-MW
+		2. Task Algorithms: define-mw-algorithm
+			1. define-mw-algorithm
+				1. Signature
+				2. Expansion functions & macros
+			1. Task policies
+				1. Different kinds.
+					1. Unordered
+					2. Sequential
+				1. Retry
+				2. Do-it-anyway
+				3. Tags
+			2. Watermark levels for Tasks
+				1. For all Tasks
+				2. Task Algorithm Specific
+		3. Master Algorithm: define-mw-master & mw-master-loop
+			1. define-mw-master & mw-master-loop functions
+			2. General loop
+				1. Initialize variables
+				2. Request Slaves
+				3. Partition and Inject tasks
+				4. mw-master-loop
+				5. Handling Results
+				6. Handling Unrunnable Tasks
+				7. Handling Sequential slave connects
+			3. Sequential Slaves
+				1. Acquiring
+					1. Unordered
+					2. Intermingled
+					3. Sequential
+				2. Notification of disconnection
+					1. Unordered (no notification)
+					2. Intermingled
+					3. Sequential
+				3. As relates to Task Policy
+		4. Slave Algorithm: define-mw-slave & mw-slave-loop-simple
+		5. Running an application
+			1. REPL testing
+			2. Executable
+				1. Making
+				2. Running
+		6. Network I/O
+			1. Fully nonblocking and Asynchronous
+			2. Network Buffer Sizes
+				1. Read/Write
+				2. Behavior
+				3. Controlling the Size
+
+
+3. Writing Applications
+	1. Hello World
+		1. hello-world.lisp
+		2. package.lisp
+		3. cl-mw.examples.hello-world.asd
+	2. Running the Hello World application
+		1. REPL
+		2. Binary Production
+			1. mw-dump-exec
+			2. disable debugger
+			3. limitations (libs must be in cwd)
+	3. Audit file
+		1. Format of entries
+		2. Limitations
+			1. Unbounded Growth
+		3. Analysis for statistics
+
+4. Interfacing with Batch Systems
+	1. Expectations of the batch system
+		1. CL-MW does NOT submit or otherwise do job or executable management
+		2. CL-MW will emit a file to make this task easier for the Batch System
+	2. The Resource File
+		1. The feedback loop between CL-MW and the Batch System.
+		2. Master produces it, Slaves can read it.
+		3. Description of Contents (point to technical section)
+	3. HTC systems
+		1. Condor
+			1. Useful file transfer semantics
+			2. on_exit_remove smoke and mirrors
+		2. The description of the idea
+		3. The master's subit file and behavior
+		4. The slave's submit file and behavior
+		5. Things to watch out for.
+			1. Memory use
+			2. i/o load on submit machine for file transfer
+			3. packing too many tasks or result into a network packet
+
+5. Technical Reference
+	1. Command Line Arguments
+	2. The exported Cl-MW API
+	3. Resource File Contents
+
+6. Future Work
+	1. How to contribute
+	2. The big list of doom for Code
+		1. ...
+		2. ...
+	3. The big list of doom for Documentation
+		1. ...
+		2. ...
+
+A1. CL-MW Internals
+
+A2. Version History
+
+
+
