@@ -22,13 +22,20 @@
 \usepackage{xspace}			% a life saver
 %\usepackage[T1]{fontenc}	% make underscores show up nice. Bad with pdflatex.
 \usepackage{html}			% For Latex2html
-\usepackage{hyperref}		% For PDF generation
 
+% latex2html really messes up the listings package, I'm not sure what to do
+% about that yet...
 %\begin{htmlonly}
-%  \usepackage{verbatim}
-%  \providecommand{\lisp}[2][]{\verbatiminput{#2}}
-%  \providecommand{\barelisp}[2][]{\verbatiminput{#2}}
+%  \usepackage{moreverb}
+%  \providecommand{\lisp}[2][]{\begin{boxedverbatim}#2\end{boxedverbatim}}
+%  \providecommand{\barelisp}[2][]{\begin{boxedverbatim}#2\end{boxedverbatim}}
 %\end{htmlonly}
+
+\usepackage{hyperref}		% For PDF generation MUST BE LAST
+\usepackage[all]{hypcap}	% Except for this, if I'm using hyperref
+							% Useful to link against figures and captions at
+							% the top of the figure/caption instead of the
+							% bottom.
 
 \hypersetup{
 	linktocpage,
@@ -1043,6 +1050,8 @@ lower its maintenance costs.  Therefore audit files are useful because
 from them one can data-mine interesting aspects of the application's
 run such as: how many slaves are connected, slave churn rate, subnet
 location of slaves, tasks processed per time interval, etc.
+
+The format of the audit file may change in a future revision of \clmw.
 
 \chapter{Interfacing with Existing Batch Systems}
 
