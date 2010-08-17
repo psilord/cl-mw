@@ -613,7 +613,7 @@ image will be written into a binary and the lisp image will exit
 and any shared libraries which \func{mw-dump-exec} finds as being
 local to the installation to SBCL or any used CL libraries will be
 written to the current working directory. The entry point will be an
-implementation specific function which does some bookeeping and then
+implementation specific function which does some bookkeeping and then
 invokes \func{mw-initialize} with the command line arguments supplied.
 In this form, the binary acts like any other client/server application
 and you can easily run as many as you need.  If for some reason the
@@ -730,7 +730,7 @@ The \ta accepts a regular Lisp string and also returns one.
 The \ma injects 10 tasks into \clmw and then continues
 to call \func{mw-master-loop} until 10 results have been
 processed.  When \func{mw-master-loop} returns, one or
-more of these \clmw functions will return meaningful data
+more of these \clmw functions will return meaningful data,
 depending upon the application: \func{mw-get-unrunnable-tasks},
 \func{mw-get-results}, \func{mw-get-connected-sequential-slaves},\\
 \func{mw-get-disconnected-sequential-slaves}.
@@ -798,7 +798,7 @@ and testing the application in the REPL.
 \section{Running Hello-World in the REPL}
 
 Now, let's run this example in the REPL so we can see how it
-works. First, we'll set up an run the master process. We initially
+works. First, we'll set up and run the master process. We initially
 call our master process's helper function which enters the \clmw
 library with lots of interesting options. In this example, we're
 packaging together up to 100 tasks to a slave, and expecting up to
@@ -1045,10 +1045,10 @@ and can grow unboundedly. The audit file will be appended to if it
 exists upon start of the master or slave process.
 
 The author of \clmw made a decision to do minimal statistics
-bookeeping in the \clmw code base in order to simplify the code and
+bookkeeping in the \clmw code base in order to simplify the code and
 lower its maintenance costs.  Therefore audit files are useful because
-from them one can data-mine interesting aspects of the application's
-run such as: how many slaves are connected, slave churn rate, subnet
+from them, one can data-mine interesting aspects of the application's
+run, such as: how many slaves are connected, slave churn rate, subnet
 location of slaves, tasks processed per time interval, etc.
 
 The format of the audit file may change in a future revision of \clmw.
@@ -1057,7 +1057,7 @@ The format of the audit file may change in a future revision of \clmw.
 
 \clmw is designed to work with various pre-existing batch systems. Due
 to this design decision, \clmw has no provision for starting up slaves
-on remote machine, moving files between machines, detecting and killing
+on a remote machine, moving files between machines, detecting and killing
 run away slaves, managing user identity, storing or transmitting
 credentials, or enforcing authorization policies for resource use.
 These, and many other features, are the general things which batch
@@ -1065,7 +1065,7 @@ systems usually provide.
 
 What \clmw does provide is a means for interaction with a batch system
 called the \rfile.  The master process, when configured to do so,
-will periodically write information into the \rfile which details:
+will periodically write information into the \rfile, which details:
 liveness of the master process, if the computation is still in progress,
 how many slaves the master desires, and exactly how to start up those
 slaves. As the batch system provides the resources requested by the
@@ -1114,9 +1114,9 @@ to \clmw are: how Condor performs file transfer of needed files for
 a job from the submit node to an execute node, and the conditions
 under which a job may leave the job queue.
 
-Concerning the file transfer, Condor will transfer the input files
-of a job to the job when the job is about to start on the remote
-execute node. Condor will do this \emph{each time} a job tries to
+Concerning the file transfer, Condor can be told to transfer the
+job's input files to the remote execute node just before the job is
+about to start.  Condor will do this \emph{each time} a job tries to
 run when it has been sitting idle in the queue. We use this fact to
 copy over the \rfile written by the master over to the slave so the
 slave knows where to connect.
@@ -1139,11 +1139,11 @@ value, again staying in the queue.  Now suppose the master restarted
 and wrote the new \rfile.  When the slave runs again, the new \rfile
 gets moved to it and it will connect with the currently running master.
 Finally, if the master has finished and written the final resource
-file stating the computation is finished, then if any slaves start up
-with that particular \rfile, they will immediately exit with a status
-zero, allowing them to leave the queue. Of course, if a slave ever
+file stating the computation is finished, then any slaves that start
+up with that particular \rfile will immediately exit with a status
+zero allowing them to leave the queue. Of course, if a slave ever
 gets told to shutdown properly by the master, and does so, then it
-will exit with status 0 and also leave the queue.
+will exit with an exit code of 0 and also leave the queue.
 
 The particular interface described in this section is a very simple one
 and doesn't push the feedback loop of the \rfile deeply at all. It
@@ -1172,7 +1172,7 @@ It will be a scheduler universe job that restricts membership of
 the slaves to be the cluster and process number of the submitted
 job, and will communicate with the slaves by means of the \rfile
 \file{resource-file.rsc}. We assume the needed libraries associated
-with the \texttt{ping} program are present along side the executable in
+with the \texttt{ping} program are present alongside the executable in
 the submit directory and we submit the job with \textit{condor\_submit}
 in that directory.
 
@@ -1186,12 +1186,12 @@ error output from the \ma.
 the master would use argv[0] to determine the name of itself if we
 did not specify the slave executable. We do this because Condor
 renames the argv[0] spawned processes to a special name such as
-\texttt{condor\_exec.\textit{JOBID}} where \texttt{\textit{JOBID}}
-is an XXX.YYY number representing the cluster and procid of the job.
-However, since the executable will be invoked (by default) in the
-current working directory of the scheduler universe job, the master
-can still determine the truename of the specified executable so we
-don't have to specify the full path.
+\texttt{condor\_exec.\textit{JOBID}} where \texttt{\textit{JOBID}} is
+an XXX.YYY number representing the Condor specific cluster and process
+id of the job.  However, since the executable will be invoked (by
+default) in the current working directory of the scheduler universe
+job, the master can still determine the truename of the specified
+executable and we don't have to specify the full path.
 
 \begin{verbatim}
 universe = scheduler
@@ -1263,7 +1263,7 @@ exited with a signal and the exit code was zero.
 
 Running binaries across a host of machines which often will differ in:
 OS revisions, physical capabilities, and network will invariably bring
-to the fore front edge cases in binary compatibility or scalability
+to the forefront edge cases in binary compatibility or scalability
 problems. Here we describe a few common scenarios and their usual
 solution.
 
@@ -1306,10 +1306,10 @@ When the binary is moved from the submit host to the execute host,
 it may be possible that the execute host may not have a suitable
 dynamic library available, or more rarely, a suitable kernel syscall
 interface the job needs. In this event, the job (in our case, the
-salve) will (often) die with a SIGKILL and go back to idle (due to
+slave) will (often) die with a SIGKILL and go back to idle (due to
 our \texttt{on\_exit\_remove} policy). It could be possible for a
 slave to continuously match to a machine upon which it cannot run and
-badput accumulated. Condor has various means to address this issue
+accumulate badput. Condor has various means to address this issue
 so please refer to the manual.
 
 \chapter{Technical Specification}
@@ -1317,7 +1317,7 @@ so please refer to the manual.
 \section{Command Line Arguments}
 \label{command-line-arguments}
 
-These are the command line argument the \clmw library accepts. These
+These are the command line arguments the \clmw library accepts. These
 command line arguments are stripped from the argv before the argv is
 handed to the \ma.
 
@@ -1334,7 +1334,7 @@ handed to the \ma.
 	and must be first on the command line.
 \item[\OptionV{mw-master-host}{ip-address-or-hostname}]
     When in Master Mode, it is the interface to which the master should
-    bind and is emitted to the heartbeat file if any such file is written.
+    bind and is emitted to the resource file if any such file is written.
     When in Slave Mode, it is the hostname to which the slave process
     should connect and get work.
 \item[\OptionV{mw-master-port}{port}]
@@ -1354,8 +1354,8 @@ handed to the \ma.
 	When in master mode this file contains information concerning:
 	\begin{itemize}
 		\item The time stamp of when the file was written.
-		\item The member-id of the master group.
-		\item The update-interval of when this file will be written again.
+		\item The member id of the master group.
+		\item The update interval of when this file will be written again.
 		\item How many slave processes are needed by the master.
 		\item The full path to the slave executable.
 		\item The complete arguments to the slave in order for it to
@@ -1588,7 +1588,7 @@ When one or more of these events happen the function will return the above
 Parameter \emph{timeout} is a time unit in real seconds which should
 be waited in the Network IO multiplexing library before timing out
 due to inactivity.  In the case of this function, it means we perform
-bookeeping work inside of the \clmw library and enter back into the
+bookkeeping work inside of the \clmw library and enter back into the
 loop if no meaningful events occurred. Setting this value too low will
 result in excessive CPU usage by the master process.
 
@@ -1759,7 +1759,7 @@ This function will return 6 values in this order:
 Parameter \emph{timeout} is a time unit in real seconds which should
 be waited in the Network IO multiplexing library before timing out
 due to inactivity.  In the case of this function, it means we perform
-bookeeping work inside of the \clmw library and then return into
+bookkeeping work inside of the \clmw library and then return into
 the \sa.  Setting this value too low will result in excessive CPU
 usage by the master process.
 
@@ -1790,7 +1790,7 @@ return 0 or 255 respectively.
 
 Parameter \emph{timeout} is a time unit in real seconds which should
 be waited in the Network IO multiplexing library before timing out.
-In the case of this function, it means we perform bookeeping work
+In the case of this function, it means we perform bookkeeping work
 inside of the \clmw library and begin waiting again for more tasks
 from the master, or a shutdown command. Setting this value too low
 will result in excessive CPU usage by the slave process.
