@@ -375,7 +375,7 @@ The three kinds of APIs created in expansion of the \emph{echo}
 the \macro{define-mw-algorithm} macro, the task injection macro
 \macro{mw-funcall-echo} and a set of functions which allow one to
 easily manage how many pending tasks for this \ta are present in
-the master process' memory.
+the master process's memory.
 
 \subsubsection{The \macro{mw-funcall-echo} Macro}
 
@@ -405,16 +405,20 @@ arguments and hence why \macro{mw-funcall-echo} is a macro.
 \subsubsection{Task Policy}
 
 The \tp associated with an injected task describes \emph{how} and
-\emph{where} a task should be executed.  A task policy is directly
-responsible for a task becoming \emph{unrunnable} and returned to
-the master algorithm for reconsideration. The default task policy is
-defined on page~\pageref{task-policy} in the Task Submission Macro portion
+\emph{where} a task should be executed.  The default task policy for
+a task is to run the task on any available slave and in any order
+with respect to any other unordered tasks. However, one may request
+special sequential slaves and then queue up tasks to be run in order
+upon those specific slaves.  The \tp is directly responsible for a
+task possibly becoming \emph{unrunnable} and returning to the master
+algorithm for reconsideration.  The default task policy is defined
+on page~\pageref{task-policy} in the Task Submission Macro portion
 of the API description.
 
 \subsubsection{Task Algorithm Target Numbers}
 
 Task algorithm target numbers are useful when a task generator in the \ma
-can produce many more tasks than can fit into the master process'
+can produce many more tasks than can fit into the master process's
 memory or disk on the resource where the master process is running.
 
 An analogy to the \clmw concept of target numbers is the temperature
@@ -458,8 +462,8 @@ signatures and meaning of the generated API:\\
 \begin{apientry}
 {mw-pending-tasks-for-echo}
 {Function}
-	How many tasks (both currently running and pending to run) for this \ta
-	are currently known about by \clmw?
+	Return the number of tasks (both currently running and pending
+	to run) for this \ta that are currently known about by \clmw.
 \end{apientry}
 
 \begin{apientry}
@@ -471,14 +475,11 @@ signatures and meaning of the generated API:\\
 	memory.
 \end{apientry}
 
-In addition, there is an general target number API which encompasses all
-\tas. General target numbers are useful when you need an easy means of
-managing the total number of tasks pumped into \clmw.
-
-All target numbers live in their own pools and don't interfere with other
-target numbers and they are only advisory. The only exception to this is
-the general target number API knows the total target number knowledge of the
-\ta specific target numbers.
+In addition, there is a general target number API which is useful when
+one needs an easy means of managing the total number of (any kind of)
+tasks pumped into \clmw. The correct number of tasks \textit{upto}
+a general target number is the specified general target number minus
+all pending tasks from any \ta.
 
 \subsection{The Master Algorithm}
 
@@ -791,7 +792,7 @@ and testing the application in the REPL.
 
 Now, let's run this example in the REPL so we can see how it
 works. First, we'll set up an run the master process. We initially
-call our master process' helper function which enters the \clmw
+call our master process's helper function which enters the \clmw
 library with lots of interesting options. In this example, we're
 packaging together up to 100 tasks to a slave, and expecting up to
 100 results back from a slave in one network communication.
