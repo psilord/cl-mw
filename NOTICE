@@ -4,3 +4,7 @@ Various contributions have been made by:
 Mick Beaver  (mick@cs.wisc.edu)
 Alan De Smet (adesmet@cs.wisc.edu)
 Greg Thain   (gthain@cs.wisc.edu)
+
+Other codes:
+Portions of the small queue implementation used in cl-mw 
+is Copyright Paul Graham.
