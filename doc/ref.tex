@@ -64,29 +64,41 @@
 %%%%%%%%%
 \newcommand{\sbcl}{SBCL\xspace}
 \newcommand{\mw}{Master-Worker\xspace}
-\newcommand{\clmw}{\xsmall\textbf{CL-MW}\xnormalsize\xspace}
+\newcommand{\clmw}{\xsmall\textsc{CL-MW}\xnormalsize\xspace}
 \newcommand{\package}[1]{\mbox{:\uppercase{\xsmall\texttt{#1}\xnormalsize}} package\xspace}
 \newcommand{\mwpackage}{\package{CL-MW}}
 \newcommand{\sa}{\textit{slave algorithm}\xspace}
 \newcommand{\ma}{\textit{master algorithm}\xspace}
 \newcommand{\ta}{\textit{task algorithm}\xspace}
+\newcommand{\Ta}{\textit{Task algorithm}\xspace}
 \newcommand{\sas}{\textit{slave algorithm}s\xspace}
+\newcommand{\Sas}{\textit{Slave algorithm}s\xspace}
 \newcommand{\mas}{\textit{master algorithm}s\xspace}
+\newcommand{\Mas}{\textit{Master algorithm}s\xspace}
 \newcommand{\tas}{\textit{task algorithm}s\xspace}
+\newcommand{\Tas}{\textit{Task algorithm}s\xspace}
 \newcommand{\tp}{\textit{task policy}\xspace}
 \newcommand{\rfile}{\textit{resource file}\xspace}
 \newcommand{\un}{\texttt{:unordered}\xspace}
 \newcommand{\inter}{\texttt{:intermingle}\xspace}
 \newcommand{\seq}{\texttt{:sequential}\xspace}
+\newcommand{\tag}{\texttt{:tag}\xspace}
 
 %%%%%%%%%
 %%The usual suspects
 %%%%%%%%%
 \newcommand{\dash}{\texttt{-}}
-\newcommand{\func}[1]{\xsmall\mbox{\uppercase{\texttt{#1}}}\xnormalsize\xspace}
-\newcommand{\macro}[1]{\xsmall\mbox{\uppercase{\texttt{#1}}}\xnormalsize\xspace}
-\newcommand{\genmacro}[2]{\xsmall\mbox{\uppercase{\texttt{#1\textit{#2}}}}\xnormalsize\xspace}
-\newcommand{\genmacroname}[1]{\small\mbox{\uppercase{\texttt{#1\textit{name}}}}\normalsize\xspace}
+
+%\newcommand{\func}[1]{\xsmall\mbox{\uppercase{\texttt{#1}}}\xnormalsize\xspace}
+%\newcommand{\macro}[1]{\xsmall\mbox{\uppercase{\texttt{#1}}}\xnormalsize\xspace}
+%\newcommand{\genmacro}[2]{\xsmall\mbox{\uppercase{\texttt{#1\textit{#2}}}}\xnormalsize\xspace}
+%\newcommand{\genmacroname}[1]{\small\mbox{\uppercase{\texttt{#1\textit{name}}}}\normalsize\xspace}
+
+\newcommand{\func}[1]{\mbox{\texttt{#1}}\xspace}
+\newcommand{\macro}[1]{\mbox{\texttt{#1}}\xspace}
+\newcommand{\genmacro}[2]{\mbox{\texttt{#1\textit{#2}}}\xspace}
+\newcommand{\genmacroname}[1]{\mbox{\texttt{#1\textit{name}}}\xspace}
+
 \newcommand{\file}[1]{\texttt{#1}\xspace}
 \newcommand{\bold}[1]{\textbf{#1}\xspace}
 \newcommand{\opt}[1]{\texttt{#1}\xspace}
@@ -118,6 +130,10 @@
 	{\apifunc{#1}{#2}\begin{quotation}}
 	{\end{quotation}}
 
+%%%%%%%%%
+% Latexery
+%%%%%%%%%
+\newcommand{\phlabel}[1]{\phantomsection\label{#1}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Environments
@@ -254,20 +270,6 @@ Version 0.1}
 \tableofcontents
 \newpage
 
-\chapter{Acknowledgements}
-
-I would like to graciously thank: my wife Stephanie--who often put up
-with me vanishing for hours on end to write and test \clmw, Greg Thain,
-Mick Beaver, and Alan De Smet, whom acted as sounding boards for the
-API and implementation and gave great feedback in the design of the
-system, manual, and how a user other than me would want to interact
-with it. In addition, I would like to thank the various denizens at
-\texttt{comp.lang.lisp} and \texttt{\#lisp} for answering many of my
-questions about Lisp.
-
-This version of \clmw is not an official product from the Condor
-Project. It is written by me in my free time.
-
 \chapter{License}
 
 The source code to \clmw, the example programs, and the
@@ -301,54 +303,75 @@ permissions and limitations under the License.
 \chapter{Overview}
 
 \section{Background}
-\mw is a distributed computing paradigm where there exists a
-master process which partitions work to one or more slave processes,
-collects the results, and produces the required end solution from
-those partial results.  The work is of a fine to medium grained
-nature and the work request, called a task, and the slave's response,
-called a result, do not individually require large disk/memory space
-or network resources. Usually, tasks are computed using an arbitrary
-ordering and on any available slave but there can be situations where
-tasks can be ordered or are directed to specific slaves because for
-processing against persistent information kept by the slave.
+\mw is a distributed computing paradigm where a master process
+partitions work to one or more slave processes, collects the results,
+and produces the required end solution from those partial results.
+The work is usually of a fine to medium grained nature. The work
+request, called a task, and the slave's response, called a result,
+do not individually require large amounts of disk space, memory space,
+or network resources.  The tasks may be ordered or unordered. Ordered
+tasks must be assigned to a slave which may additionally hold
+persistant information.  Unordered tasks run on any available slave and
+are often the only kind of tasks supported by \mw systems.  Examples of
+problems applicable to the \mw paradigm are: numerical optimization,
+exploring game search trees, webcrawling, and monte-carlo simulations.
 
-In many \mw execution environments, slave churn is an unavoidable
-reality as execute nodes connect or disconnect from the computation.
-Many \mw systems accept this reality and provide task scheduling
-algorithms such that when a slave disconnects, times out, or otherwise
-is deemed unusable, any tasks assigned to that slave are recycled
-back into the task pool and distributed out to a different slave at a
-later time. If the master process exits prematurely, then the slaves
-all die as soon as they notice as to not consume computing resources.
+In many \mw execution environments, it is an unavoidable reality that
+execute nodes asynchronously connect and unexpectedly disconnect from
+the computation.  This is called slave churn. Many \mw systems accept
+this reality and provide task scheduling algorithms such that when
+a slave disconnects, times out, or otherwise is deemed unusable,
+tasks assigned to that slave are recycled back into the task pool
+to be distributed out to a different slave at a later time. If the
+master process exits prematurely, then the slaves all die as soon as
+they notice, as to not consume computing resources.
 
-\mw systems generally do best when coupled with an external batch
-scheduling system. The batch system can manage resource acquisitions
-for the slave processes and provide an environment to restart the
-computation in the face of machine or other environmental failure.
+\mw systems may be coupled with an external batch scheduling
+system. The batch system can manage resource acquisitions for the
+slave processes and provide an environment to restart the computation
+in the face of machine or other environmental failure.
 
 \section{\clmw}
 \clmw is a \mw implementation written in, and for, Common Lisp. The
-design of the library's API was intentionally bent towards ease of
-use and rapid prototyping of distributed \mw style algorithms.
-The library decouples management of the task/result flow through
-the slaves from the act of spawning slaves to simplify interaction
-with pre-existing batch systems. \clmw has three main parts to be
-specified by the application author: \tas, \mas, and \sas. \clmw
-implements a single binary solution which means that both the master
-and slave codes reside in one binary.
+design of the library's API was designed for ease of use and rapid
+prototyping of \mw applications.  The library decouples management
+of the task/result flow through the slaves from the act of spawning
+slaves to simplify interaction with pre-existing batch systems. \clmw
+has three main parts to be specified by the application author: one
+or more \tas, a \ma, and optionally a \sa. \clmw implements a single
+binary executable containing both the master and slave code.
+
+The \ma produces tasks and inserts them into \clmw.  Tasks are data
+packets destined for a specific \ta (and potentially a specific slave
+as well) and which are stored in the master process.  \Tas are pieces
+of code in the slave which process the tasks into results which
+are sent back to the master process for consumption by the \ma.
+\clmw maintains a pool of tasks running and waiting to be run.
+While all of the tasks can be created during the \ma initialization,
+tasks can also be added dynamically.  Tasks may be dynamically added
+based on results from earlier tasks, or they may be dynamically added
+to limit memory used to store them.  Tasks have meta-data associated
+with them that can dictate where or in what manner the task should
+be processed. This is known as a \tp.
+
+An optional \sa allows arbitrary computation to happen in the slave
+in between processing one or more task. An example of such a slave
+computation is downloading a database upon slave startup which is
+used by the \tas and then removing it when the slave shuts down.
 
 \subsection{Task Algorithms}
 
-The macro \macro{define-mw-algorithm} defines a \ta. The signature of
-this macro is similar to \macro{defun} in that a name and argument
-list is specified except that \key, \rest, and \optional\ arguments
-are not supported and the \ta cannot use \macro{values} to return
-a set of values. These limitations will be removed in future versions
+A \ta is a piece of code written by the application author
+which converts tasks into results in the slave.  The macro
+\macro{define-mw-algorithm} defines a \ta. The parameter list of
+this macro is similar to \macro{defun}. You specify a name and an
+argument list. Unlike \macro{defun}, \key, \rest, and \optional\
+arguments are currently not supported. The supplied code cannot return
+a set of values with \func{values}. There must only be one value that
+is returned.  These limitations will be removed in future versions
 of \clmw.
 
-The result of the expansion of \macro{define-mw-algorithm} is a
-collection of macros and functions relating to the \ta. Here is
-an example definition of a \ta which echos back its argument
+Here is an example definition of a \ta which echos back its argument
 unchanged. \Note The arguments accepted and the result returned
 are that which you would have done had the \ta been defined with
 \macro{defun}.
@@ -364,12 +387,12 @@ functions and a macro as defined in table~\ref{expanded-define-mw-algorithm}.
 \begin{table}[hbt]
 \begin{center}
 \begin{tabular}{||l|l||} \hline
-\bold{Symbol}						& \bold{Kind} \\ \hline
-\func{echo}							& Function \\ \hline
-\macro{mw-funcall-echo}				& Macro \\ \hline
+\bold{Symbol}							& \bold{Kind} \\ \hline
+\func{echo}								& Function \\ \hline
+\macro{mw-funcall-echo}					& Macro \\ \hline
 \func{mw-set-target-number-for-echo}	& Function \\ \hline
 \func{mw-get-target-number-for-echo}	& Function \\ \hline
-\func{mw-pending-tasks-for-echo}	& Function \\ \hline
+\func{mw-pending-tasks-for-echo}		& Function \\ \hline
 \func{mw-upto-target-number-echo}		& Function \\ \hline
 \end{tabular}
 \caption{\label{expanded-define-mw-algorithm}
@@ -377,19 +400,18 @@ functions and a macro as defined in table~\ref{expanded-define-mw-algorithm}.
 \end{center}
 \end{table}
 
-The three kinds of APIs created in expansion of the \emph{echo}
-\ta are: the \emph{echo} function itself--which is the body of
-the \macro{define-mw-algorithm} macro, the task injection macro
-\macro{mw-funcall-echo} and a set of functions which allow one to
-easily manage how many pending tasks for this \ta are present in
-the master process's memory.
+The functions and macro created in expansion of the \emph{echo} \ta
+are grouped into three sets: the \emph{echo} function itself--which is
+the body of the \macro{define-mw-algorithm} macro, the task creation
+macro \macro{mw-funcall-echo}, and a set of functions which allow
+one to manage how many pending tasks for this \ta are queued.
 
 \subsubsection{The \macro{mw-funcall-echo} Macro}
 
-The macro \macro{mw-funcall-echo} is a destructuring macro which
-separates the arguments for a task to a specific \ta from the \tp
-arguments to the \clmw library.  The \texttt{(str)} argument list is
-precisely the argument list specified to \macro{define-mw-algorithm}.
+The macro \macro{mw-funcall-echo} creates a new task and separates
+the arguments to the \textit{echo} function--ultimately called with
+those arguments in the slave process, from the \tp associated with
+the task.
 
 The signature of \macro{mw-funcall-echo} is:
 
@@ -398,60 +420,82 @@ The signature of \macro{mw-funcall-echo} is:
                  (&key sid tag do-it-anyway (retry t)))
 \end{barelisp}
 
-This is an example call is which shows the destructuring that separates
-the \ta arguments from the \tp arguments. 
+This example call of \macro{mw-funcall-echo} shows the creation of a
+new \textit{echo} task with an argument of \texttt{"Hello World"}.
+All task arguments to the \ta must occur within the first set of
+parentheses and in the order specified for the specific {\ta}'s
+parameter list.  Processing this task will result in a result
+structure given back to the \ma which contains the echo'ed string
+\texttt{"Hello World"}.
 
 \begin{barelisp}
-(mw-funcall-echo ("Hello World") 
-                 :tag '(example invocation))
+(mw-funcall-echo ("Hello World"))
 \end{barelisp}
-
-The separation allows the \ta to use any symbolic name for its
-arguments and hence why \macro{mw-funcall-echo} is a macro.
 
 \subsubsection{Task Policy}
 
-The \tp associated with an injected task describes \emph{how} and
-\emph{where} a task should be executed.  The default task policy for
-a task is to run the task on any available slave and in any order
-with respect to any other unordered tasks. However, one may request
-special sequential slaves and then queue up tasks to be run in order
-upon those specific slaves.  The \tp is directly responsible for a
-task possibly becoming \emph{unrunnable} and returning to the master
-algorithm for reconsideration.  The default task policy is defined
-on page~\pageref{task-policy} in the Task Submission Macro portion
-of the API description.
+The \tp associated with a task describes \emph{how} and \emph{where}
+a task should be executed.  The \tp for a task is defined when a
+task is created via the \macro{my-funcall-*} macro. Part of the
+default \tp for a task to be considered unordered and to run on
+any available slave.  Another part of the default is that if the
+task running on an arbitrary slave---which then disconnects without
+providing an answer, the task is reassigned to a different slave for
+processing and this can happen many times.  The full default \tp is
+specified on page ~\pageref{task-policy} as well as what each portion
+of the policy means.
+
+Through the \tp, one may assign tasks to run on previously acquired
+sequential slaves. These sequential tasks will be run in the
+order inserted by the \ma.  The \tp is directly responsible for a
+sequential task possibly becoming \emph{unrunnable}. This happens when
+the sequential slave which is processing the task disconnects. The
+default \tp for sequential tasks is that any tasks being processed on
+the disconnected slave \textit{or queued waiting to run on the slave}
+become unrunnable and the task structures are given back to the \ma.
+
+This example call of \macro{mw-funcall-echo} is the same as above with
+respect to the task generated and the result expected. However, when
+the result structure associated with this task is presented to the
+\ma, the result will have in it the associated tag of \texttt{1234}.
+The tag of a task may be any lisp form.
+
+\begin{barelisp}
+(mw-funcall-echo ("Hello World") :tag 1234)
+\end{barelisp}
 
 \subsubsection{Task Algorithm Target Numbers}
 
-Task algorithm target numbers are useful when a task generator in the \ma
-can produce many more tasks than can fit into the master process's
+Target numbers are values recorded by \clmw and set by the \ma which
+represent the number of pending to run tasks for a \ta that should be
+kept in memory at all times.  It is useful when a task generator in the
+\ma can produce many more tasks than can fit into the master process's
 memory or disk on the resource where the master process is running.
 
 An analogy to the \clmw concept of target numbers is the temperature
 setting of a thermostat. If one sets a thermostat to 70{\textdegree}F
-then when the temperature falls below that, the furnace kicks in and
-injects heat into the room until the target number is reached. If the
-furnace heats up the room beyond the target number there is nothing
-to stop it, but it generally shouldn't since the goal is to keep the
-temperature stable at the target temperature.
+then when the temperature falls below that, the furnace kicks in
+and injects heat into the room until the target number is reached.
+As the furnace heats up the room it may overheat it, but it generally
+shouldn't since the goal is to keep the temperature stable at the
+thermostat's setting.
 
 In the same manner as the furnace, the \ma can use the target number
-for a \ta to inject the required number of tasks (which could be zero
-if no new tasks are needed) into memory until the target number is
-reached. This is how the \ma can run millions or billions of tasks
-through \clmw without having to have all of them in existance at
-once. The tasks may be lazily generated as needed.
+for a \ta to create the required number of tasks (which could be
+zero if no new tasks are needed) into \clmw until the target number
+is reached. The \ma can run millions or billions of tasks through
+without having to have all of them in existance at once. The tasks
+may be lazily generated as needed.
 
 The target numbers themselves have no behavior on how \clmw processes
 the tasks or enforces restricting the number of injected tasks.
 All target numbers do are provide a means so that the \ma can police
-itself when injecting tasks. The master is free to inject more tasks
+itself when creating tasks. The master is free to inject more tasks
 than specified in a target number without restriction (other than
 running out of memory or other resources in the process).
 
 Continuing the example of the \emph{echo} \ta, here is a description of the
-signatures and meaning of the generated API:\\
+signatures and meaning of this set of generated functions:\\
 
 \begin{apientry}
 {mw-set-target-number-for-echo \emph{value}}
@@ -476,58 +520,64 @@ signatures and meaning of the generated API:\\
 \begin{apientry}
 {mw-upto-target-number-echo}
 {Function}
-	How many tasks must be injected by the \ma in order to reach the
-	target number for this \ta? This could be zero if no more tasks should
-	be injected because \clmw already has the number of tasks it needs in
-	memory.
+	A number of tasks which must be created by the \ma in order
+	to reach the target number for this \ta. This function could
+	return zero if the return value of \func{mw-get-target-nuber-for-echo} 
+	is equal to or less than the return value of 
+	\func{mw-pending-tasks-for-echo}.
 \end{apientry}
 
-In addition, there is a general target number API which is useful when
-one needs an easy means of managing the total number of (any kind of)
-tasks pumped into \clmw. The correct number of tasks \textit{upto}
-a general target number is the specified general target number minus
-all pending tasks from any \ta.
+\subsubsection{The General Target Number}
 
-\subsection{The Master Algorithm}
+If an application author wishes to manage only the total
+number of created tasks in memory independent of which \ta
+they represent, then they can use the general target number
+API as defined in section~\ref{general-target-number-api} on
+page~\pageref{general-target-number-api}.  The number of tasks
+\textit{up to} the general target number is the general target number
+minus all pending tasks from any \ta.
 
-The \ma is responsible for: handling command line arguments passed
-to the master process, understanding resource utilization from the
-slave population, partitioning tasks, driving the \clmw library event
-loop, processing results and unrunnable tasks, processing sequential
-slave acquisition and deallocation, and ultimately computing the
-final result.
+\subsection{\label{master-algorithm}The Master Algorithm}
 
 The macro \macro{define-mw-master} defines the \ma for a \clmw
-application and there can only be one per application.
+application. There is only be one \ma per application. The \ma is
+responsible for:
 
-The signature of this macro is:
+\begin{itemize}
+\item Parsing non-\clmw command line arguments passed to the application process
+\item Partitioning the main problem into sub-problems and creating tasks
+\item Acquiring and managing sequential slaves
+\item Calling the {\ma}'s event loop function
+\item Processing the results returned by the slaves
+\item Determining what to do when some tasks become unrunnable
+\item Computing the final answer of the application from all results
+\end{itemize}
+
+The parameter list of this macro is:
 
 \begin{barelisp}
 (define-mw-master (argv) &body body)
 \end{barelisp}
 
-where \var{argv} is a variable--arbitrarily named and available
-in the \var{body}, which will be bound to an argument list where
-any arguments destined to the \clmw library will have been removed
-from the list before the \ma is invoked. The arguments not stripped
-out are left in the order specified.  The return value of the \ma
-must be an integer in the range of 0 and 255 (inclusive) and this
-value becomes the Unix return value for the master process. If the
-return value is anything other than an integer between 0 and 255,
-the returned result will be 255.
+where \var{argv} is a variable--arbitrarily named and available in
+the \var{body}, which will be bound to the command line argument
+list. Any arguments destined to the \clmw library will have been
+removed from the list before the \ma is invoked.  The arguments not
+stripped out are left in the order specified on the command line.
+The return value of the \ma must be an integer in the range of 0 and
+255 (inclusive) and this value becomes the Unix return value for the
+master process. If the return value is any other lisp form other than
+an integer between 0 and 255, the returned result will be 255.
 
-Driving the \clmw event loop is one of the main functions of
-the \ma. The \ma accomplishes this by calling the function
-\func{mw-master-loop} (or a variant of this function) which
-will perform network i/o and the general functions of the \clmw
-library. This function handles network traffic between the master and
-clients and only returns a set of values when there is something of
-note to process by the \ma.
-
-\Note \clmw can be told how long it wants to wait for a reply
-from a slave and if that wait is exceeded the slave is considered a
-problem and forcibly disconnected by the master process. Any tasks
-held by the slave are then handled in accordance to their \tp.
+Driving the \clmw master event loop is one of the main functions
+of the \ma. The \ma accomplishes this by calling the function
+\func{mw-master-loop} (or a variant of this function--see
+page~\pageref{master-algorithm-api}). This function blocks and performs
+network I/O to all slaves or any other background work in the \clmw
+library. This function returns with a set of values that specify what
+is available for the \ma to process (such as new results, arrival
+or disconnection of sequential slaves, etc) only when there is some
+event for the \ma to process.
 
 \subsubsection{Slave Categorization}
 
@@ -575,11 +625,12 @@ to exit in the same fashion:
 (define-mw-slave (argv) &body)
 \end{barelisp}
 
-The \sa is often a very simple call to \func{mw-slave-loop-simple}
-which will wait for tasks to arrive from the master, process them,
-send the results back, and continue as such until the master sends
-a shutdown command. \func{mw-slave-loop-simple} returns 0 if the
-shutdown was normal and explicitly from the master.
+The \sa is an optional portion of a \clmw application. It is
+often a very simple call to \func{mw-slave-loop-simple} which will
+wait for tasks to arrive from the master, process them, send the
+results back, and continue as such until the master sends a shutdown
+command. \func{mw-slave-loop-simple} returns 0 if the shutdown was
+normal and explicitly from the master.
 
 There are other slave looping function variants which allow the
 slave loop function to return after a single task is finished, or a
@@ -591,6 +642,12 @@ If no slave algorithm is specified in a \clmw
 application, then the default slave algorithm defined in
 listing~\ref{default-slave-algorithm} is automatically defined
 and used.
+
+XXX 
+\Note \clmw can be told how long it wants to wait for a reply
+from a slave and if that wait is exceeded the slave is considered a
+problem and forcibly disconnected by the master process. Any tasks
+held by the slave are then handled in accordance to their \tp.
 
 \subsection{Running a \clmw Application}
 
@@ -1452,7 +1509,7 @@ parameters describe a behavior which together constitute the \tp for
 a submitted task.
 
 \begin{description}
-\label{task-policy}
+\phlabel{task-policy}
 \item[sid \textit{SLAVE-ID}] Send the task to a specific slave denoted by 
 					\textit{SLAVE-ID}.
                     If NIL, this task is considered \un, otherwise it is 
@@ -1514,7 +1571,7 @@ to reach the desired target number for \ta \emph{name}.
 \end{apientry}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\apiheader{The General Target Number API}
+\apiheader{\phlabel{general-target-number-api}The General Target Number API}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%
 \begin{apientry}
@@ -1548,7 +1605,7 @@ to reach the general target number for all tasks.
 \end{apientry}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\apiheader{The Master Algorithm}
+\apiheader{\phlabel{master-algorithm-api}The Master Algorithm}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%
 \begin{apientry}
@@ -2036,6 +2093,21 @@ up in the \ta.
 \begin{verhist}{0.1}{MM/DD/YYYY}
 \info Initial release of \clmw.
 \end{verhist}
+
+\chapter{Acknowledgements}
+
+I would like to graciously thank: my wife Stephanie--who often put
+up with me vanishing for hours on end to write and test \clmw, Greg
+Thain, Mick Beaver, and Alan De Smet, whom acted as sounding boards
+for the implementation and gave great feedback in the design of the
+system, manual, and how a user other than me would want to interact
+with it. In addition, I would like to thank the various denizens at
+\texttt{comp.lang.lisp} and \texttt{\#lisp} for answering many of my
+questions about Lisp.
+
+\clmw is not an official product from the Condor Project. It is written
+by me in my free time. If you would like to use a C++ version of the
+\mw paradigm then check out \texttt{Condor-MW} form Condor's website.
 
 \backmatter
 
