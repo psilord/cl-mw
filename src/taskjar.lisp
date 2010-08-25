@@ -86,27 +86,27 @@
             (skvh id id (mw-taskjar-unordered-tasks *taskjar*))
             t)
 
-          ;; Task is sequential since it is meant for a slave. See if
+          ;; Task is ordered since it is meant for a slave. See if
           ;; the slave exists, is willing to take the task, and what
           ;; happens if it doesn't.
 
           (if (and slave (ordered-slavep slave))
               ;; If the slave exists, good, we'll add the taskid to
-              ;; the sequential-tasks queue for that slave and it'll
+              ;; the ordered-tasks queue for that slave and it'll
               ;; run eventually.
               (progn
-                (emit nil "Adding a sequential task ~s~%" task)
+                (emit nil "Adding a ordered task ~s~%" task)
                 ;; Store the actual task structure
                 (store-base-task id task)
-                ;; Add a reference to the task in the sequential table
+                ;; Add a reference to the task in the ordered table
                 (safe-enqueue-hash sid id
-                                   (mw-taskjar-sequential-tasks *taskjar*))
+                                   (mw-taskjar-ordered-tasks *taskjar*))
                 t)
 
               ;; There is a sid, but no slave instance (because
               ;; presumeably the slave went away and we removed it
               ;; from the slave table) or the slave doesn't want to accept
-              ;; sequential tasks, what happens?
+              ;; ordered tasks, what happens?
               (if do-it-anyway
                   ;; If the user wanted to do it anyway, then fix up
                   ;; the task and queue it up for any slave to do.
@@ -136,10 +136,10 @@
 ;; might be around referencing it. It is resolve-speculation that will only
 ;; remove the task-id from that table. Return the task, or nil if not found.
 (defun remove-task (task-id)
-  ;; Remove the references to it from the unordered or sequential sets. One
+  ;; Remove the references to it from the unordered or ordered sets. One
   ;; of these will be successful.
   (rkh task-id (mw-taskjar-unordered-tasks *taskjar*))
-  (rkh task-id (mw-taskjar-sequential-tasks *taskjar*))
+  (rkh task-id (mw-taskjar-ordered-tasks *taskjar*))
 
   ;; Remove it from the task table itself, but return the task as the result.
   (let ((tsk (lkh task-id (mw-taskjar-tasks *taskjar*))))
@@ -159,16 +159,16 @@
 ;; Returns t if some tasks were allocated, nil otherwise.
 (defun allocate-tasks (slave)
 
-  ;; Preference of scheduling concerning field sequential:
-  ;; 1. Schedule sequential tasks only on :sequential.
-  ;; 2. Schedule sequential first, then unordered if needed, on :intermingle
+  ;; Preference of scheduling concerning field ordered:
+  ;; 1. Schedule ordered tasks only on :ordered.
+  ;; 2. Schedule ordered first, then unordered if needed, on :intermingle
   ;; 3. Schedule unordered tasks on slave
   ;; 4. If speculation is wanted, allocate some already speculated tasks.
 
-  (with-slots (sequential) slave
-    (ecase sequential
-      (:sequential
-       (allocate-sequential-tasks slave))
+  (with-slots (ordered) slave
+    (ecase ordered
+      (:ordered
+       (allocate-ordered-tasks slave))
       (:intermingle
        (allocate-intermingle-tasks slave))
       (:unordered
@@ -179,11 +179,11 @@
 ;; slave to be however many were were able to allocate.
 (defun allocate-unordered-tasks (slave)
   (with-slots
-        (sequential task-group pending-task-queue num-pending-tasks) slave
+        (ordered task-group pending-task-queue num-pending-tasks) slave
 
     ;; Only these types of slaves can accept unordered tasks.
-    (assert (or (eq :unordered sequential)
-                (eq :intermingle sequential)))
+    (assert (or (eq :unordered ordered)
+                (eq :intermingle ordered)))
 
     (let ((orig-num-pending-tasks num-pending-tasks))
       (block all-done
@@ -227,22 +227,22 @@
       (/= num-pending-tasks orig-num-pending-tasks))))
 
 
-;; Here we try to fill up the pending queue with sequential task destined for
+;; Here we try to fill up the pending queue with ordered task destined for
 ;; this slave. We return t if we allocated some tasks, nil if we didn't.
 ;; This function adds a speculation for each task allocated as well.
-(defun allocate-sequential-tasks (slave)
-  ;; If there are no sequential tasks for this slave, we're done.
+(defun allocate-ordered-tasks (slave)
+  ;; If there are no ordered tasks for this slave, we're done.
   (with-slots
-        (sid sequential task-group pending-task-queue num-pending-tasks) slave
+        (sid ordered task-group pending-task-queue num-pending-tasks) slave
 
-    (assert (or (eq :sequential sequential) (eq :intermingle sequential)))
+    (assert (or (eq :ordered ordered) (eq :intermingle ordered)))
 
     (multiple-value-bind (queue present)
-        (lkh sid (mw-taskjar-sequential-tasks *taskjar*))
+        (lkh sid (mw-taskjar-ordered-tasks *taskjar*))
 
-      ;; Bail if there are no sequential tasks to enqueue up into the slave.
+      ;; Bail if there are no ordered tasks to enqueue up into the slave.
       (unless (and present (not (empty-queue queue)))
-        (return-from allocate-sequential-tasks nil))
+        (return-from allocate-ordered-tasks nil))
 
       ;; If we have any room in the slave's pending queue, we cram some more
       ;; tasks in there.
@@ -262,14 +262,14 @@
         (/= num-pending-tasks orig-num-pending-tasks)))))
 
 (defun allocate-intermingle-tasks (slave)
-  (with-slots (sequential) slave
-    (assert (eq :intermingle sequential))
+  (with-slots (ordered) slave
+    (assert (eq :intermingle ordered))
 
-    ;; Allocate sequential stuff first, then backfill with unordered
-    ;; if there is space left over. Since sequential tasks are more
+    ;; Allocate ordered stuff first, then backfill with unordered
+    ;; if there is space left over. Since ordered tasks are more
     ;; fragile in that they can only run on a specific slave, we
     ;; schedule them first.
-    (let* ((pass-1 (allocate-sequential-tasks slave))
+    (let* ((pass-1 (allocate-ordered-tasks slave))
            (pass-2 (allocate-unordered-tasks slave)))
       ;; We don't just or the above two together, because or short circuits
       ;; and we want to run both passes no matter what happens.
@@ -388,14 +388,14 @@
         (if retry
             (if sid
                 (if do-it-anyway
-                    ;; If we are a sequential task, but do-it-anyway
+                    ;; If we are a ordered task, but do-it-anyway
                     ;; is true, this means the task preferred to run
                     ;; on the specific slave, but could really run
                     ;; anywhere. So here we generalize the task-id
                     ;; into unordered set and allow it to run
                     ;; anywhere.  Note: Since speculations must be
                     ;; resolved before we got here, there should be no
-                    ;; speculations for the disconnected sequential
+                    ;; speculations for the disconnected ordered
                     ;; task.
                     (progn
                       (assert (zerop (task-num-speculations task-id)))
@@ -408,7 +408,7 @@
                       ;; target-number data.
                       (adjust-pending-target-numbers #'1+ (find-task task-id)))
 
-                    ;; If we are a sequential task, currently only
+                    ;; If we are a ordered task, currently only
                     ;; allocatable once, and don't want to redo as an
                     ;; unordered task, we become unrunnable. Rip the
                     ;; task structure out of wherever it lives and
@@ -457,12 +457,12 @@
                 ;; for it!
                 (adjust-pending-target-numbers #'1- (find-task task-id)))))))))
 
-;; This will go through the sequential table, and for all sequential
+;; This will go through the ordered table, and for all ordered
 ;; queues which do not have a connected slave (and hence could not
 ;; have been currently allocated to any slave), do something with the
 ;; tasks. Either convert them into unordered tasks, or make them
 ;; unrunnable.
-(defun reclaim-defunct-sequential-tasks ()
+(defun reclaim-defunct-ordered-tasks ()
   (let ((all-defunct-tasks (make-queue)))
     (maphash
      #'(lambda (sid pending-queue)
@@ -480,13 +480,13 @@
 
              ;; Finally, remove myself (the bad sid) from the hash table.
              ;; ANSI CL says this is ok.
-             (rkh sid (mw-taskjar-sequential-tasks *taskjar*)))))
-     (mw-taskjar-sequential-tasks *taskjar*))
+             (rkh sid (mw-taskjar-ordered-tasks *taskjar*)))))
+     (mw-taskjar-ordered-tasks *taskjar*))
 
     ;; Reclaim each of the defunct tasks, we know that all of these
     ;; tasks aren't currently allocated to run and don't alter any
     ;; target-number data concerning pending tasks if they move from
-    ;; sequential tasks to unordered tasks.
+    ;; ordered tasks to unordered tasks.
     (while (not (empty-queue all-defunct-tasks))
       (let ((task-id (dequeue all-defunct-tasks)))
         (reclaim-task task-id :was-allocated nil)))))

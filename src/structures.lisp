@@ -48,7 +48,7 @@
   (algorithm nil)
 
   ;; If this task is destined to a specific slave id, this is it.
-  ;; Defining this means the task is a sequential task.
+  ;; Defining this means the task is a ordered task.
   (sid nil)
 
   ;; the producer can associate a form with a tag which is transmitted
@@ -107,16 +107,16 @@
   ;; before sending back the packet of results?
   (result-group 1)
 
-  ;; A slave could be provisioned to run sequential tasks (which know
+  ;; A slave could be provisioned to run ordered tasks (which know
   ;; some internal state about the slave and utilize it, like a cache
   ;; for example).
   ;;
-  ;; Valid options are: :unordered, :intermingle, :sequential
+  ;; Valid options are: :unordered, :intermingle, :ordered
   ;;
   ;; :unordered - Run only unordered tasks.
-  ;; :intermingle - Slave allows sequential use, but give random tasks for eff.
-  ;; :sequential - Slave will ONLY execute specified seq tasks or be idle.
-  (sequential :unordered)
+  ;; :intermingle - Slave allows ordered use, but give random tasks for eff.
+  ;; :ordered - Slave will ONLY execute specified seq tasks or be idle.
+  (ordered :unordered)
 
   ;; task queue is a queue of task ids  which have been
   ;; given to the slave as one big chunk to be processed, in order, in
@@ -190,17 +190,17 @@
 
   ;; Here we keep a view of the kind of slave it is
   ;;
-  ;; Key is :intermingle, :sequential, or :unordered, Value is a hash
+  ;; Key is :intermingle, :ordered, or :unordered, Value is a hash
   ;; table with key "who:port" and value "who:port" in slaves table.
   (kind (mihtequal
-         :sequential (mihtequal)
+         :ordered (mihtequal)
          :intermingle (mihtequal)
          :unordered (mihtequal)))
 
-  ;; Key is :intermingle, :sequential, or :unordered, Value is a hash
+  ;; Key is :intermingle, :ordered, or :unordered, Value is a hash
   ;; table with key "sid" and value "who:port" in slaves table.
   (kind-by-sid (mihtequal
-                :sequential (mihtequal)
+                :ordered (mihtequal)
                 :intermingle (mihtequal)
                 :unordered  (mihtequal)))
 
@@ -288,25 +288,25 @@
   ;; How many results are in the queue
   (num-results 0)
 
-  ;; When a sequential/intermingle slave connects, it gets put into
+  ;; When a ordered/intermingle slave connects, it gets put into
   ;; this list for the master algorithm to use.
-  (connected-sequential-slaves nil)
-  ;; When a sequential/intermingle disconnects, it goes here so the
+  (connected-ordered-slaves nil)
+  ;; When a ordered/intermingle disconnects, it goes here so the
   ;; master algo can do something menaingful with it.
-  (disconnected-sequential-slaves nil)
+  (disconnected-ordered-slaves nil)
 
   ;; How many slaves in each bucket do we need, and we fill the
-  ;; buckets in the order of :sequential, then :intermingle, then
+  ;; buckets in the order of :ordered, then :intermingle, then
   ;; :unordered as we gather slaves to us. If we happen to get more
   ;; slaves than we need in any particular bucket, they end up in the
   ;; unordered acquired bucket.
   (slaves-desired (mihtequal
-                   :sequential 0
+                   :ordered 0
                    :intermingle 0
                    :unordered 0))
 
   (slaves-acquired (mihtequal
-                    :sequential 0
+                    :ordered 0
                     :intermingle 0
                     :unordered 0))
 
@@ -400,15 +400,15 @@
   ;; Keyed by task id, Value is task id
   (unordered-tasks (make-hash-table :test #'equal))
 
-  ;; This stores the task id for sequential tasks destined for a
+  ;; This stores the task id for ordered tasks destined for a
   ;; specific unique slave.  When task-ids are taken from this set
   ;; and given to the slave, the slave assumes ownership of the
   ;; task-id. Unordered tasks are not in this set. There is only ever
-  ;; ONE speculation for a sequential task, and that is on the slave to
+  ;; ONE speculation for a ordered task, and that is on the slave to
   ;; which it is destined.
   ;;
   ;; Keyed by slave id, value is a queue of task ids to be run in order.
-  (sequential-tasks (make-hash-table :test #'equal))
+  (ordered-tasks (make-hash-table :test #'equal))
 
   ;; When we assign a task to one or more slaves, we are speculating
   ;; that the task will be completed by one of them. Here we record

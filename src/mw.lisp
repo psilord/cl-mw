@@ -287,20 +287,20 @@
     (setf (mw-master-num-results *mwm*) 0)
     results))
 
-;; If we requested any sequential slaves and they have arrived, then give
+;; If we requested any ordered slaves and they have arrived, then give
 ;; them wholesale to the caller.
-(defun mw-get-connected-sequential-slaves ()
-  (with-slots (connected-sequential-slaves) *mwm*
-    (let ((sids connected-sequential-slaves))
-      (setf connected-sequential-slaves nil)
+(defun mw-get-connected-ordered-slaves ()
+  (with-slots (connected-ordered-slaves) *mwm*
+    (let ((sids connected-ordered-slaves))
+      (setf connected-ordered-slaves nil)
       sids)))
 
-;; If any sequential slaves where known about and happened to have
+;; If any ordered slaves where known about and happened to have
 ;; previously disconnected, we allow the master algo to know that.
-(defun mw-get-disconnected-sequential-slaves ()
-  (with-slots (disconnected-sequential-slaves) *mwm*
-    (let ((sids disconnected-sequential-slaves))
-      (setf disconnected-sequential-slaves nil)
+(defun mw-get-disconnected-ordered-slaves ()
+  (with-slots (disconnected-ordered-slaves) *mwm*
+    (let ((sids disconnected-ordered-slaves))
+      (setf disconnected-ordered-slaves nil)
       sids)))
 
 ;; The one and only entrance call into the master or slave. This is
@@ -497,9 +497,9 @@
                                            *conftable*)
                                           :controller controller)))
 
-                      (with-slots (sequential sid) new-slave
+                      (with-slots (ordered sid) new-slave
                         ;; Figure out if the slave is supposed to be
-                        ;; :unordered, :intermingle, or :sequential
+                        ;; :unordered, :intermingle, or :ordered
                         (assign-slave-allocation new-slave)
 
                         ;; Put the slave into the stable
@@ -508,13 +508,13 @@
 
                         ;; If we aren't :unordered then make the sid
                         ;; available to the master algorithm for its use.
-                        (when (not (eq :unordered sequential))
+                        (when (not (eq :unordered ordered))
                           (push sid
-                                (mw-master-connected-sequential-slaves *mwm*)))
+                                (mw-master-connected-ordered-slaves *mwm*)))
 
                         (alog t sid
                               "~A:~A -> [~S] :connecting [~(~S~)]~%"
-                              who port membership sequential)
+                              who port membership ordered)
 
                         ;; When we get network activity associated with
                         ;; this controller, it goes to this function.
@@ -785,11 +785,11 @@
 
     ))
 
-;; The master will allocate incoming slaves to be :sequential,
+;; The master will allocate incoming slaves to be :ordered,
 ;; :intermingle, and then :unordered--using that perference, as
 ;; desired by the master algorithm.
 (defun mw-allocate-slaves (&key (amount 1000) (kind :unordered))
-  (assert (member kind '(:unordered :intermingle :sequential)))
+  (assert (member kind '(:unordered :intermingle :ordered)))
   (with-slots (slaves-desired) *mwm*
     (incf (lkh kind slaves-desired) amount)))
 
@@ -797,7 +797,7 @@
 ;; rid of any connected slaves, but it won't replenish them when they
 ;; disconnect.
 (defun mw-deallocate-slaves (&key (amount 0) (kind :unordered))
-  (assert (member kind '(:unordered :intermingle :sequential)))
+  (assert (member kind '(:unordered :intermingle :ordered)))
   (unless (<= amount 0)
     (with-slots (slaves-desired) *mwm*
       (decf (lkh kind slaves-desired) amount)
@@ -820,23 +820,23 @@
                          (lkh :unordered slaves-acquired)))
        (mw-zero-clamp (- (lkh :intermingle slaves-desired)
                          (lkh :intermingle slaves-acquired)))
-       (mw-zero-clamp (- (lkh :sequential slaves-desired)
-                         (lkh :sequential slaves-acquired))))))
+       (mw-zero-clamp (- (lkh :ordered slaves-desired)
+                         (lkh :ordered slaves-acquired))))))
 
 ;; If supplied a valid :slave-sid, then freed :intermingle or
-;; :sequential slaves simply get put into the :unordered group and the
+;; :ordered slaves simply get put into the :unordered group and the
 ;; number desired for that group the slave was originally in goes
 ;; down.
 ;;
 ;; If supplied a :kind, then simply decrement by one the group size
 ;; associated with that kind. Do no changes otherwise to any current
-;; sequential slaves. [This is often done when a disconnected
-;; sequential slave happens and you don't want it to be replaced.
+;; ordered slaves. [This is often done when a disconnected
+;; ordered slave happens and you don't want it to be replaced.
 ;;
 ;; Returns t if a slave had been present and was freed, nil otherwise.
 ;;
 ;; If the master algo frees a slave which was in the middle of
-;; processing some sequential tasks, MW will wait until the results come
+;; processing some ordered tasks, MW will wait until the results come
 ;; back and give them as expected results to the master algorithm. It is up
 ;; to the master algorithm to discern if it actually wants those results.
 (defun mw-free-slave (&key slave-sid kind)
@@ -846,19 +846,19 @@
 
   (if slave-sid
       (when-let ((slave (remove-slave :sid slave-sid)))
-        (with-slots (sequential who port sid status) slave
+        (with-slots (ordered who port sid status) slave
 
-          ;; If the master algo has freed a sequential slave, it means it
-          ;; permanently wants one less desired sequential slave.
-          (unless (eq :unordered sequential)
-            (decf (lkh sequential (mw-master-slaves-desired *mwm*))))
+          ;; If the master algo has freed a ordered slave, it means it
+          ;; permanently wants one less desired ordered slave.
+          (unless (eq :unordered ordered)
+            (decf (lkh ordered (mw-master-slaves-desired *mwm*))))
 
-          ;; Don't adjust the sequentialness of a disconnected slave since
+          ;; Don't adjust the orderedness of a disconnected slave since
           ;; that will impact us in the master-iterate loop and doing our
           ;; bookeeping at that time.
           (unless (eq :disconnected status)
             ;; Adjust the kind of the slave back to unordered
-            (setf sequential :unordered)
+            (setf ordered :unordered)
             ;; Put it back into the stable into the same stall I found it,
             ;; but this will change what group the slave is in.
             (add-slave slave who port sid :where status)
@@ -872,17 +872,17 @@
 (defun assign-slave-allocation (slave)
   (with-slots (slaves-desired slaves-acquired) *mwm*
     (cond
-      ((> (lkh :sequential slaves-desired)
-          (lkh :sequential slaves-acquired))
-       (setf (mw-slave-sequential slave) :sequential)
-       (incf (lkh :sequential slaves-acquired))
+      ((> (lkh :ordered slaves-desired)
+          (lkh :ordered slaves-acquired))
+       (setf (mw-slave-ordered slave) :ordered)
+       (incf (lkh :ordered slaves-acquired))
        ;; Now put it into the queue for the master algo to receive.
 
        slave)
 
       ((> (lkh :intermingle slaves-desired)
           (lkh :intermingle slaves-acquired))
-       (setf (mw-slave-sequential slave) :intermingle)
+       (setf (mw-slave-ordered slave) :intermingle)
        (incf (lkh :intermingle slaves-acquired))
 
        ;; Now put it into the queue for the master algo to receive.
@@ -890,31 +890,31 @@
 
       (t
        ;; All slaves to go the :unordered group if noone else wants them.
-       (setf (mw-slave-sequential slave) :unordered)
+       (setf (mw-slave-ordered slave) :unordered)
        (incf (lkh :unordered slaves-acquired))))))
 
 ;; A collection of functions which deal with slave task ordering.
 (defun unordered-only-slavep (slave)
-  (eq :unordered (mw-slave-sequential slave)))
+  (eq :unordered (mw-slave-ordered slave)))
 
 ;; An intermingled slave is both an unordered slave and an ordered slave,
 ;; depending upon context.
 (defun unordered-slavep (slave)
-  (with-slots (sequential) slave
-    (or (eq :unordered sequential)
-        (eq :intermingle sequential))))
+  (with-slots (ordered) slave
+    (or (eq :unordered ordered)
+        (eq :intermingle ordered))))
 
 ;; An intermingled slave is both an unordered slave and an ordered slave,
 ;; depending upon context.
 (defun ordered-slavep (slave)
-  (with-slots (sequential) slave
-    (or (eq :intermingle sequential)
-        (eq :sequential sequential))))
+  (with-slots (ordered) slave
+    (or (eq :intermingle ordered)
+        (eq :ordered ordered))))
 
-;; A sequential slave is only an ordered slave
+;; A ordered slave is only an ordered slave
 (defun ordered-only-slavep (slave)
-  (with-slots (sequential) slave
-    (eq :sequential sequential)))
+  (with-slots (ordered) slave
+    (eq :ordered ordered)))
 
 (defun mw-master-loop (&key (timeout .05))
   ;; XXX Whoa, this is crappy code. I need a multiple value do...
@@ -958,37 +958,37 @@
 
               (reclaim-disconnected-tasks slave)
 
-              (with-slots (sequential sid) slave
-                (with-slots (disconnected-sequential-slaves
+              (with-slots (ordered sid) slave
+                (with-slots (disconnected-ordered-slaves
                              slaves-acquired) *mwm*
 
                   ;; The master algo is probably doing its own
                   ;; bookeeping, and having both the sid and the
-                  ;; sequentiality will help it make judgements
+                  ;; orderedity will help it make judgements
                   ;; about the resources it wants.
-                  (unless (eq :unordered sequential)
-                    (push (list sid sequential)
-                          disconnected-sequential-slaves))
+                  (unless (eq :unordered ordered)
+                    (push (list sid ordered)
+                          disconnected-ordered-slaves))
 
                   ;; This allows us to try and replace the lost
-                  ;; sequential slave (unless of course the
+                  ;; ordered slave (unless of course the
                   ;; master-algo decreases the number desired in this
-                  ;; sequential group). The replacement will happen
+                  ;; ordered group). The replacement will happen
                   ;; when we write out our resource-file and a higher
                   ;; level resource manager inspects it.
-                  (decf (lkh sequential slaves-acquired))
-                  (when (< (lkh sequential slaves-acquired) 0)
-                    (setf (lkh sequential slaves-acquired) 0))))))
+                  (decf (lkh ordered slaves-acquired))
+                  (when (< (lkh ordered slaves-acquired) 0)
+                    (setf (lkh ordered slaves-acquired) 0))))))
 
         (remove-slaves :from :disconnected))
 
-  ;; 2. We check to see if any of the sequential tasks are destined for
+  ;; 2. We check to see if any of the ordered tasks are destined for
   ;; slaves which no longer exist or don't want to run them.
-  (reclaim-defunct-sequential-tasks)
+  (reclaim-defunct-ordered-tasks)
 
   ;; 3. For each idle slave, try to allocate some tasks to it and send it a
   ;; payload of work. The function ALLOCATE-TASKS is smart enough to schedule
-  ;; tasks appropriately with regards to the sequential setting of slaves and
+  ;; tasks appropriately with regards to the ordered setting of slaves and
   ;; the available task load.
   (mapc #'(lambda (slave)
             (with-slots (who port controller sid result-group) slave
@@ -1045,14 +1045,14 @@
   ;;
   ;; How many unprocessed unrunnable tasks there are.
   ;; How many unprocessed results are present and waiting for consumption.
-  ;; How many requested sequential slaves have just showed up.
-  ;; How many sequential slaves have just disconnected.
+  ;; How many requested ordered slaves have just showed up.
+  ;; How many ordered slaves have just disconnected.
 
   ;; Nothing to call, just see if there is any results pending.
   (values (length (mw-taskjar-unrunnable-tasks *taskjar*))
           (mw-master-num-results *mwm*)
-          (length (mw-master-connected-sequential-slaves *mwm*))
-          (length (mw-master-disconnected-sequential-slaves *mwm*))))
+          (length (mw-master-connected-ordered-slaves *mwm*))
+          (length (mw-master-disconnected-ordered-slaves *mwm*))))
 
 
 (defun mw-slave-initialize (argv)

@@ -41,8 +41,8 @@
    #:mw-free-slave
    #:mw-get-unrunnable-tasks
    #:mw-get-results
-   #:mw-get-connected-sequential-slaves
-   #:mw-get-disconnected-sequential-slaves
+   #:mw-get-connected-ordered-slaves
+   #:mw-get-disconnected-ordered-slaves
    #:mw-set-target-number
    #:mw-get-target-number
    #:mw-pending-tasks
@@ -66,8 +66,8 @@
 ;; DONE 3. Make it so an audit log on disk is made.
 ;; DONE 4. Solidify audit logs to take predefined stream, default to stdout.
 ;; DONE 5. Ensure mw-funcall-* interface is good enough for government work.
-;; DONE 6. Change 'sequential' to use :unordered instead of nil
-;; DONE 7. Finish sequential slave API & boundary conditions with seq slaves.
+;; DONE 6. Change 'ordered' to use :unordered instead of nil
+;; DONE 7. Finish ordered slave API & boundary conditions with seq slaves.
 ;; DONE 8. Fix define-mw-algorithm to do argument separation, keep it simple.
 ;; DONE 9. Implement master's "heartbeat/target number" file.
 ;; DONE 10. Solidify -loop and -iterate for slave--especially, and master.

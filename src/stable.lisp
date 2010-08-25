@@ -75,7 +75,7 @@
 ;; It also adds the slave to the slave kind tables using the information
 ;; in the slave object as to where it goes.
 (defun add-slave (slave who port sid &key (where :connecting))
-  (with-slots (sid status sequential last-heard-from) slave
+  (with-slots (sid status ordered last-heard-from) slave
     ;; Tell the slave in what stall it lives and when I put it there.
     (setf status where
           last-heard-from (get-universal-time))
@@ -90,8 +90,8 @@
       (skvh sid key (gss where :sid))
 
       ;; Add the slave to the "slave kind" tables
-      (skvh key key (lkh sequential (gss :kind :who-port)))
-      (skvh sid key (lkh sequential (gss :kind :sid))))))
+      (skvh key key (lkh ordered (gss :kind :who-port)))
+      (skvh sid key (lkh ordered (gss :kind :sid))))))
 
 ;; Return as two values the who/port of a slave and the stall in which the
 ;; slave exists. nil nil of no slave present by the key provided. A key thing
@@ -151,7 +151,7 @@
 ;; the stable for a reason but is still active. While we remove the
 ;; slave from the kind tables too, we don't pass back in what kind
 ;; group the slave had been in since you can just inspect the
-;; sequential file in the slave object to see.
+;; ordered file in the slave object to see.
 (defun remove-slave (&key who port sid)
   ;; I can have either a who port combination or a sid, but not both or none
   (assert (and (or (and who port)
@@ -172,9 +172,9 @@
               (let ((slave (lkh who-port (gss :base))))
                 ;; Remove it from the kind tables
                 (rkh sid
-                     (lkh (mw-slave-sequential slave) (gss :kind :sid)))
+                     (lkh (mw-slave-ordered slave) (gss :kind :sid)))
                 (rkh who-port
-                     (lkh (mw-slave-sequential slave) (gss :kind :who-port)))
+                     (lkh (mw-slave-ordered slave) (gss :kind :who-port)))
                 ;; Finally remove it from the base
                 (rkh who-port (gss :base))
                 (values slave where)))
@@ -193,9 +193,9 @@
                 (rkh who-port (gss where :who-port))
                 ;; Remove it from the kind tables
                 (rkh sid
-                     (lkh (mw-slave-sequential slave) (gss :kind :sid)))
+                     (lkh (mw-slave-ordered slave) (gss :kind :sid)))
                 (rkh who-port
-                     (lkh (mw-slave-sequential slave) (gss :kind :who-port)))
+                     (lkh (mw-slave-ordered slave) (gss :kind :who-port)))
                 ;; Remove it from the base and return it
                 (rkh who-port (gss :base))
                 (values slave where)))
