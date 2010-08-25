@@ -3,6 +3,11 @@
 (in-package #:cl-mw-asd)
 
 (defsystem #:cl-mw
+  :description "CL-MW: A Master/Worker Library"
+  :version "0.1"
+  :author "Peter Keller <psilord@cs.wisc.edu>"
+  :licence "Apache License, Version 2.0"
+  
   :depends-on (#:hu.dwim.serializer #:alexandria #:iolib)
   :components (
                ;; This is the CL-MW library source code
@@ -23,36 +28,4 @@
                                                          "structures"
                                                          "packet-buffer"))
                                      (:file "impl"
-                                            :depends-on ("mw"))))
-
-               ;; The hello-world example application
-               (:module module-example-hello-world
-                        :depends-on (module-cl-mw)
-                        :pathname "examples/hello-world"
-                        :components ((:file "package")
-                                     (:file "hello-world"
-                                            :depends-on ("package"))))
-
-               ;; The ping example application
-               (:module module-example-ping
-                        :depends-on (module-cl-mw)
-                        :pathname "examples/ping"
-                        :components ((:file "package")
-                                     (:file "ping"
-                                            :depends-on ("package"))))
-
-               ;; The monte-carlo-pi example application
-               (:module module-example-monte-carlo-pi
-                        :depends-on (module-cl-mw)
-                        :pathname "examples/monte-carlo-pi"
-                        :components ((:file "package")
-                                     (:file "monte-carlo-pi"
-                                            :depends-on ("package"))))
-
-               ;; The higher-order example application
-               (:module module-example-higher-order
-                        :depends-on (module-cl-mw)
-                        :pathname "examples/higher-order"
-                        :components ((:file "package")
-                                     (:file "higher-order"
-                                            :depends-on ("package"))))))
+                                            :depends-on ("mw"))))))
