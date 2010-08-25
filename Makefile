@@ -13,7 +13,7 @@ examples/higher-order/higher-order:
 	(cd examples/higher-order && make)
 	
 clean:
-	(cd examples/hello-world && make clean)
-	(cd examples/ping && make clean)
-	(cd examples/monte-carlo-pi && make clean)
-	(cd examples/higher-order && make clean)
+	(cd examples/hello-world && make clean && touch package.lisp)
+	(cd examples/ping && make clean && touch package.lisp)
+	(cd examples/monte-carlo-pi && make clean && touch package.lisp)
+	(cd examples/higher-order && make clean && touch package.lisp)
