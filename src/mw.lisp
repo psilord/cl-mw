@@ -911,11 +911,10 @@
     (or (eq :intermingle sequential)
         (eq :sequential sequential))))
 
-(defun intermingle-slavep (slave)
-  (eq :intermingle (mw-slave-sequential slave)))
-
-(defun sequential-slavep (slave)
-  (eq :sequential (mw-slave-sequential slave)))
+;; A sequential slave is only an ordered slave
+(defun ordered-only-slavep (slave)
+  (with-slots (sequential) slave
+    (eq :sequential sequential)))
 
 (defun mw-master-loop (&key (timeout .05))
   ;; XXX Whoa, this is crappy code. I need a multiple value do...
