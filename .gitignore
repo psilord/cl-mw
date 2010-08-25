@@ -15,3 +15,10 @@
 
 # A junk file particular to my project
 zzz.rsc
+
+# junk from LaTeX
+*.aux
+*.dvi
+*.log
+*.out
+*.toc
