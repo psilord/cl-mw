@@ -63,7 +63,7 @@
 % abbreviations, yay xspace!
 %%%%%%%%%
 \newcommand{\sbcl}{SBCL\xspace}
-\newcommand{\mw}{Master-Worker\xspace}
+\newcommand{\mw}{Master-Slave\xspace}
 \newcommand{\clmw}{\xsmall\textsc{CL-MW}\xnormalsize\xspace}
 \newcommand{\package}[1]{\mbox{:\uppercase{\xsmall\texttt{#1}\xnormalsize}} package\xspace}
 \newcommand{\mwpackage}{\package{CL-MW}}
@@ -81,7 +81,7 @@
 \newcommand{\rfile}{\textit{resource file}\xspace}
 \newcommand{\un}{\texttt{:unordered}\xspace}
 \newcommand{\inter}{\texttt{:intermingle}\xspace}
-\newcommand{\seq}{\texttt{:sequential}\xspace}
+\newcommand{\ord}{\texttt{:ordered}\xspace}
 \newcommand{\tag}{\texttt{:tag}\xspace}
 
 %%%%%%%%%
@@ -260,7 +260,7 @@ numberbychapter=true,
 \frontmatter 
 
 \title{\textbf{CL-MW}\\
-\normalsize A Master-Worker Library for Distributed\\
+\normalsize A Master-Slave Library for Distributed\\
 Programming in Common Lisp\\
 Version 0.1}
 \author{Peter Keller\\psilord@cs.wisc.edu}
@@ -446,11 +446,11 @@ specified on page ~\pageref{task-policy} as well as what each portion
 of the policy means.
 
 Through the \tp, one may assign tasks to run on previously acquired
-sequential slaves. These sequential tasks will be run in the
+ordered slaves. These ordered tasks will be run in the
 order inserted by the \ma.  The \tp is directly responsible for a
-sequential task possibly becoming \emph{unrunnable}. This happens when
-the sequential slave which is processing the task disconnects. The
-default \tp for sequential tasks is that any tasks being processed on
+ordered task possibly becoming \emph{unrunnable}. This happens when
+the ordered slave which is processing the task disconnects. The
+default \tp for ordered tasks is that any tasks being processed on
 the disconnected slave \textit{or queued waiting to run on the slave}
 become unrunnable and the task structures are given back to the \ma.
 
@@ -488,9 +488,9 @@ without having to have all of them in existance at once. The tasks
 may be lazily generated as needed.
 
 The target numbers themselves have no behavior on how \clmw processes
-the tasks or enforces restricting the number of injected tasks.
+the tasks or enforces restricting the number of created tasks.
 All target numbers do are provide a means so that the \ma can police
-itself when creating tasks. The master is free to inject more tasks
+itself when creating tasks. The master is free to create more tasks
 than specified in a target number without restriction (other than
 running out of memory or other resources in the process).
 
@@ -546,7 +546,7 @@ responsible for:
 \begin{itemize}
 \item Parsing non-\clmw command line arguments passed to the application process
 \item Partitioning the main problem into sub-problems and creating tasks
-\item Acquiring and managing sequential slaves
+\item Acquiring and managing ordered slaves
 \item Calling the {\ma}'s event loop function
 \item Processing the results returned by the slaves
 \item Determining what to do when some tasks become unrunnable
@@ -576,36 +576,52 @@ page~\pageref{master-algorithm-api}). This function blocks and performs
 network I/O to all slaves or any other background work in the \clmw
 library. This function returns with a set of values that specify what
 is available for the \ma to process (such as new results, arrival
-or disconnection of sequential slaves, etc) only when there is some
+or disconnection of ordered slaves, etc) only when there is some
 event for the \ma to process.
 
 \subsubsection{Slave Categorization}
 
-The \ma may use an API which will categorize connecting slaves into
-the groups (in order of presentation): \seq, \inter, \un. These groups
-are used by the \tp mechanism to route sequential tasks to slaves.
-The \seq group means that the slave will \emph{only} run sequential
-tasks dedicated to that slave. The \inter group means that a slave
-may run unordered tasks in addition to sequential tasks, but the
-sequential tasks are run in the order injected by the \ma and given
-priority on the slave. The \un group means \emph{only} unordered
-tasks are run on the slave in any arbitrary order. If this API is not
-used then all connecting slaves default to the \un group. The API 
-is comprised of these functions: \func{mw-allocate-slaves},
-\func{mw-deallocate-slaves}, and \func{mw-free-slave}.
+The \ma can use the function \func{mw-allocate-slaves} to categorize
+connecting slaves into the groups: \ord, \inter, and \un.  A connecting
+slave is first used to satisfy the needs of the group \ord, then
+\inter.  If enough slaves connect as to satisfy the needs for both
+the \ord and \inter groups, then they are placed into the \un group.
+Initially the \ord and \inter groups need 0 slaves and all slaves will
+default to being placed in the \un group.
 
-When \inter or \seq slaves are requested and they end up connecting,
-the \ma will be notified by the \func{mw-master-loop} (or variant)
-that there are sequential slaves ready for use. The master may
-use \func{mw-get-connected-sequential-slaves} to get the list
-of SLAVE-IDs which can be used as the \texttt{:sid} field with
-the macro \macro{mw-funcall-*}. If at any time sequential slaves
-disconnect, again the function \func{mw-master-loop} (or variant)
-will notify the \ma of the change and the \ma can use the function
-\func{mw-get-disconnected-sequential-slaves} to learn the SLAVE-IDs
-of the disconnected slaves. There is no notification when an \un
-slave disconnects. If at any time more slaves connect than any one
-group needs, then the slave gets put into the \un group.
+The \ord group means that the slave will \emph{only} run ordered tasks
+dedicated to that slave. The \inter group means that a slave may run
+unordered tasks in addition to ordered tasks dedicated to that slave
+but the ordered tasks are given priority over any unordered tasks
+which could run on that slave. Slaves in the \un group only run
+unordered tasks.
+
+When \inter or \ord slaves are needed and new slaves placed into
+those groups, the \func{mw-master-loop} notifies the \ma (or
+variant--see page~\pageref{master-algorithm-api}) that there are
+ordered slaves ready for use. This notification happens with one of
+the values returned by \func{mw-master-loop}. The \clmw application
+author can use the function \\ \func{mw-get-connected-ordered-slaves} to
+retrieve the list of connected slaves.
+
+The function \func{mw-get-connected-ordered-slaves} returns a list
+of \\ SLAVE-IDs which can be used as the \texttt{:sid} field with the
+macro \macro{mw-funcall-*}.  If no ready ordered slaves are available,
+then NIL is returned. Connected ordered slaves accumulate in that
+list until the \ma uses \\ \func{mw-get-connected-ordered-slave}
+to retrieve them.  If at any time ordered slaves disconnect, the
+function \func{mw-master-loop} will notify the \ma of the change
+via one of its returned values.  The \ma can use the function
+\func{mw-get-disconnected-ordered-slaves} to learn the SLAVE-IDs
+of the disconnected ordered slaves. A slave may be in both lists at
+once if it connected and then disconnected before the \ma was able
+to retrieve either of the lists. There is no notification when an
+\un slave connects or disconnects.
+
+The \ma can free a slave from the \ord or \inter groups be using
+\func{mw-deallocate-slaves} and \func{mw-free-slave}. These will move
+ordered slaves to the \un group but only after they have completed
+processing any \ord tasks which had been given to them.
 
 \subsubsection{Membership}
 
@@ -742,10 +758,11 @@ a single \ma, and a single \sa.
 
 \section{Example: Hello World}
 
-The purpose of this minimal example is to show how to create a \ta, a \ma,
-and a \sa. The \ma will inject tasks into \clmw and process the results from
-one or more slaves which connect to the master process. The \ta we describe
-simply concatenates the string arguments with another string and returns it.
+The purpose of this minimal example is to show how to create a \ta,
+a \ma, and a \sa. The \ma will create tasks and process the results
+from one or more slaves which connect to the master process. The \ta
+we describe simply concatenates the string arguments with another
+string and returns it.
 
 We start with the unsurprising ASDF file for the hello-world \clmw application.
 
@@ -784,13 +801,13 @@ The \ta accepts a regular Lisp string and also returns one.
   (concatenate 'string "Hello World: " str))
 \end{lisp}
 
-The \ma injects 10 tasks into \clmw and then continues
+The \ma creates 10 tasks into \clmw and then continues
 to call \func{mw-master-loop} until 10 results have been
 processed.  When \func{mw-master-loop} returns, one or
 more of these \clmw functions will return meaningful data,
 depending upon the application: \func{mw-get-unrunnable-tasks},
-\func{mw-get-results}, \func{mw-get-connected-sequential-slaves},\\
-\func{mw-get-disconnected-sequential-slaves}.
+\func{mw-get-results}, \func{mw-get-connected-ordered-slaves},\\
+\func{mw-get-disconnected-ordered-slaves}.
 
 \begin{lisp}[caption=\file{hello-world.lisp: \bold{Part 2 of 4}}]
 (in-package :cl-mw.examples.hello-world)
@@ -884,7 +901,7 @@ T
 \end{verbatim}
 \normalsize
 
-At this point, the master process has already injected some hello
+At this point, the master process has already created some hello
 world tasks and is waiting for some slaves to connect. The output
 lines with \texttt{[A]} in them are emitted as an audit trail by the
 \clmw library.  The \bold{``default-member-id''} is the membership
@@ -1479,7 +1496,7 @@ parameters only.
 
 \Limitation A \ta may not return multiple values or a
 function or closure. The latter restriction is due to the inability
-to serialize closure from the slave to the master.
+to serialize a closure from the slave to the master.
 \end{apientry}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1513,20 +1530,20 @@ a submitted task.
 \item[sid \textit{SLAVE-ID}] Send the task to a specific slave denoted by 
 					\textit{SLAVE-ID}.
                     If NIL, this task is considered \un, otherwise it is 
-					a \seq task. 
+					a \ord task. 
 \item[tag \textit{FORM}] A form which will appear unchanged in the result
-			structure associated with computed task. The default is NIL.
+			structure associated with the computed task. The default is NIL.
 \item[do-it-anyway {[T \textit{or} NIL]}] If the task was a 
-							\seq task and the slave disconnected, then should
+							\ord task and the slave disconnected, then should
 							this task be moved into the \un group (yes if T),
-							or become unrunnable (yes if NIL)? By default \seq
+							or become unrunnable (yes if NIL)? By default \ord
 							tasks become unrunnable if the associated slave is
 							disconnected. 
 \item[retry {[T \textit{or} NIL]}] If an unordered task was assigned to a 
 			slave and the slave went away, then this controls if we should
 			retry on a different slave or if the task becomes unrunnable. If
 			this test passes then :do-it-anyway is consulted in the case of
-			\seq tasks. 
+			\ord tasks. 
 \end{description}
 \end{apientry}
 
@@ -1540,7 +1557,7 @@ a submitted task.
 {Function}
 Sets the target number for the \ta specific to \emph{name} to
 \emph{value}, which is clamped to zero or greater.  This represents
-the maximum number of not currently running tasks for this \ta that
+the maximum number of pending tasks for this \ta that
 the \ma would like to keep in memory at once. This target number is advisory
 and the \ma can insert more tasks than indicated by the target number. The
 default target number for any specific \ta is 0.  
@@ -1550,7 +1567,7 @@ default target number for any specific \ta is 0.
 \begin{apientry}
 {mw-get-target-number-for-\textit{name}}
 {Function}
-Returns the target number for the number of desired task to
+Returns the target number for the number of desired tasks to
 keep in memory for the \ta specific to \emph{name}.
 \end{apientry}
 
@@ -1566,7 +1583,7 @@ to the \ta \emph{name}.
 \begin{apientry}
 {mw-upto-target-number-\textit{name}}
 {Function}
-Returns the number of tasks the \ma would have to inject in order
+Returns the number of tasks the \ma would have to create in order
 to reach the desired target number for \ta \emph{name}.
 \end{apientry}
 
@@ -1578,7 +1595,7 @@ to reach the desired target number for \ta \emph{name}.
 {mw-set-target-number \emph{value}}
 {Function}
 Sets the general target number for all tasks regardless of \ta. This is
-only advisory and more tasks could be injected into \clmw by the \ma.
+only advisory and more tasks could be created into \clmw by the \ma.
 \end{apientry}
 
 %%%
@@ -1600,7 +1617,7 @@ Return how many tasks of any kind are waiting to be scheduled to slaves.
 \begin{apientry}
 {mw-upto-target-number}
 {Function}
-Return how many tasks of any kind should be injected by the master in order
+Return how many tasks of any kind should be created by the master in order
 to reach the general target number for all tasks.
 \end{apientry}
 
@@ -1639,8 +1656,15 @@ one or more of these events happen:
 \item Sequential slaves have disconnected from the computation.
 \end{itemize}
 
-When one or more of these events happen the function will return the above
-4 values in that order.
+When one or more of these events happen the function will return the
+4 values: 
+
+\begin{enumerate}
+\item Number of unrunnable tasks
+\item Number of ready results
+\item Number of newly connected and unprocessed ordered slaves
+\item Number of newly disconnected and unprocessed ordered slaves
+\end{enumerate}
 
 Parameter \emph{timeout} is a time unit in real seconds which should
 be waited in the Network IO multiplexing library before timing out
@@ -1683,20 +1707,20 @@ Return all currently finished result structures in a list or NIL if none.
 
 %%%
 \begin{apientry}
-{mw-get-connected-sequential-slaves}
+{mw-get-connected-ordered-slaves}
 {Function}
-If there are any connected sequential slaves ready for use, this will
+If there are any connected ordered slaves ready for use, this will
 retrieve the list of slave ids or NIL if none. In practice each slave
 id is a string, but generally they are an opaque data structure used
 to uniquely identify a slave. You should use \func{equal} to check
-to equality between slave ids.
+quality between slave ids.
 \end{apientry}
 
 %%%
 \begin{apientry}
-{mw-get-disconnected-sequential-slaves}
+{mw-get-disconnected-ordered-slaves}
 {Function}
-If any sequential slaves have become disconnected, return a list of
+If any ordered slaves have become disconnected, return a list of
 their slave ids. You may use \func{equal} to compare against other
 slave ids.
 \end{apientry}
@@ -1706,9 +1730,9 @@ slave ids.
 {mw-allocate-slaves \&key (\emph{amount} 1000) (\emph{kind :unordered})}
 {Function}
 There are three kinds of groups for which slaves can be allocated:
-\seq, \inter, \un.  When a slave initially connects for work, it is
+\ord, \inter, \un.  When a slave initially connects for work, it is
 placed into one of the three groups.  The order of group fulfillment
-is \seq, \inter, \un. If both \seq and \inter are full, then any
+is \ord, \inter, \un. If both \ord and \inter are full, then any
 connecting slaves go over to the \un group. The total number of desired
 slaves for all groups is written into the resource file as the number of
 needed slaves. This function can cause slaves in the \un group to move to
@@ -1724,7 +1748,7 @@ it.  The default allocation for all groups is 0.
 {Function}
 This does not stop any slaves from processing any tasks, but it does lower
 the number of slaves desired, clamped to zero, of any of the of group
-\un, \inter, \seq as specified. This relates to what is written in the
+\un, \inter, or \ord as specified. This relates to what is written in the
 resource file by the master process.
 \end{apientry}
 
@@ -1735,7 +1759,7 @@ resource file by the master process.
 Move the slave specified by \emph{slave-id} into the \un \\ group
 after it completes whatever tasks it may be running and adjust the
 desired slave amounts for the group the slave was in. This does not
-evict or otherwise stop to currently allocated tasks from running on
+evict or otherwise stop currently allocated tasks from running on
 that slave. The slave's group is only changed once all of the tasks
 it is currently running are computed.  \end{apientry}
 
@@ -2010,8 +2034,8 @@ The current attributes for the \rfile in this version of \clmw are:
 
 \item[:update-interval]
 	The value is an integer which represents the number of seconds since the
-	timestamp that the resource file will be re-written. The default is 300
-	seconds.
+	timestamp after which the resource file will be re-written. The default 
+	is 300 seconds.
 
 \item[:slaves-needed]
 	This value represents the raw number of slaves the \ma has requested in
@@ -2020,7 +2044,7 @@ The current attributes for the \rfile in this version of \clmw are:
 \item[:slave-executable]
 	This value is a list where the first element is a string
 	representing the full path to the executable which is the
-	slave executable, and the second element is a list of string
+	slave executable, and the second element is a list of strings
 	representing full paths to any shared libraries that have to
 	be moved along with the executable.
 
