@@ -51,7 +51,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%
-% Sigh. Font alterations for latex verus web pages...
+% Sigh. Font alterations for latex versus web pages...
 % First arguments means what'll be in the latex, second means what'll be in
 % the latex2html.
 %%%%%%%%%
@@ -311,10 +311,10 @@ request, called a task, and the slave's response, called a result,
 do not individually require large amounts of disk space, memory space,
 or network resources.  The tasks may be ordered or unordered. Ordered
 tasks must be assigned to a slave which may additionally hold
-persistant information.  Unordered tasks run on any available slave and
+persistent information.  Unordered tasks run on any available slave and
 are often the only kind of tasks supported by \mw systems.  Examples of
 problems applicable to the \mw paradigm are: numerical optimization,
-exploring game search trees, webcrawling, and monte-carlo simulations.
+exploring game search trees, web-crawling, and Monte-Carlo simulations.
 
 In many \mw execution environments, it is an unavoidable reality that
 execute nodes asynchronously connect and unexpectedly disconnect from
@@ -425,7 +425,7 @@ new \textit{echo} task with an argument of \texttt{"Hello World"}.
 All task arguments to the \ta must occur within the first set of
 parentheses and in the order specified for the specific {\ta}'s
 parameter list.  Processing this task will result in a result
-structure given back to the \ma which contains the echo'ed string
+structure given back to the \ma which contains the echoed string
 \texttt{"Hello World"}.
 
 \begin{barelisp}
@@ -484,7 +484,7 @@ In the same manner as the furnace, the \ma can use the target number
 for a \ta to create the required number of tasks (which could be
 zero if no new tasks are needed) into \clmw until the target number
 is reached. The \ma can run millions or billions of tasks through
-without having to have all of them in existance at once. The tasks
+without having to have all of them in existence at once. The tasks
 may be lazily generated as needed.
 
 The target numbers themselves have no behavior on how \clmw processes
@@ -522,7 +522,7 @@ signatures and meaning of this set of generated functions:\\
 {Function}
 	A number of tasks which must be created by the \ma in order
 	to reach the target number for this \ta. This function could
-	return zero if the return value of \func{mw-get-target-nuber-for-echo} 
+	return zero if the return value of \func{mw-get-target-number-for-echo} 
 	is equal to or less than the return value of 
 	\func{mw-pending-tasks-for-echo}.
 \end{apientry}
@@ -621,65 +621,77 @@ to retrieve either of the lists. There is no notification when an
 The \ma can free a slave from the \ord or \inter groups be using
 \func{mw-deallocate-slaves} and \func{mw-free-slave}. These will move
 ordered slaves to the \un group but only after they have completed
-processing any \ord tasks which had been given to them.
+processing any assigned \ord tasks. \Note When a freed ordered slave
+finishes processing the tasks assigned, it will move to the \un group
+even though there may actually be more tasks destined for that slave.
+In this case, the tasks will follow the task policy dictated by the
+\ma when it created the task.
 
 \subsubsection{Membership}
 
-The membership value between the master and the slave must match for
-the master to accept the slave and have it perform work. This is not
-a security measure, but something to keep master processes and slave
-processes synchronized in heavy churn situations where many masters and
-slaves from different computations could be going up and down quickly.
+The membership token--an arbitrary string, is a token known between
+the master and the slave. It must match for the master to accept the
+slave and have it perform work. This is not a security measure. This
+keeps the master and slave processes synchronized in heavy churn
+situations where many masters and slaves from different computations
+could be going up and down quickly. The major risk in high master
+churn situations is port reuse of the master process. A port may
+have master 1 bind to it, write a resource file, die, then later
+master 2 from a different computation binds to the port, meanwhile
+a slave using the original master 1 resource file tries to connect
+to master 1 but actually connects to master 2.  Membership tokens
+must be unique across \clmw application master processes running
+concurrently on one machine. Unless otherwise specified with the
+\OptionV{mw-resource-file}{filename} command line option, the membership
+token will default to \texttt{"default-member-id"}.
 
 \subsection{The Slave Algorithm}
 
-The \sa is defined with the \clmw macro \macro{define-mw-slave}. The
-signature of this macro is similar to \macro{define-mw-master} and needs
-to exit in the same fashion:
+The \sa is defined with \macro{define-mw-slave}.  The parameter list
+of this macro is similar to \macro{define-mw-master}. This macro must
+return an integer from 0 to 255 inclusive.  This portion of a \clmw
+application is optional and may be left out entirely in an application.
 
 \begin{barelisp}
-(define-mw-slave (argv) &body)
+(define-mw-slave (argv) &body body)
 \end{barelisp}
 
-The \sa is an optional portion of a \clmw application. It is
-often a very simple call to \func{mw-slave-loop-simple} which will
+The body of a \sa is usually a simple call to
+\func{mw-slave-loop-simple}.  \func{mw-slave-loop-simple} will
 wait for tasks to arrive from the master, process them, send the
-results back, and continue as such until the master sends a shutdown
+results back, and will repeat until the master sends a shutdown
 command. \func{mw-slave-loop-simple} returns 0 if the shutdown was
-normal and explicitly from the master.
+explicitly requested by the master and happened normally or 255
+otherwise.
 
 There are other slave looping function variants which allow the
-slave loop function to return after a single task is finished, or a
-task group is finished. These variants are used when the slave needs
-to set up or tear down some files while it is working or otherwise
-manipulate the environment around it in-between processing tasks.
+slave loop function to return after a single, or group, of tasks
+is finished.  These variants are used when the slave needs to set up
+or tear down some files while it is working or otherwise manipulate
+the environment around it in-between processing tasks. Please see
+page~\pageref{slave-algorithm-api} for these other variants.
 
-If no slave algorithm is specified in a \clmw
-application, then the default slave algorithm defined in
-listing~\ref{default-slave-algorithm} is automatically defined
-and used.
+If no slave algorithm is specified in a \clmw application, then this
+default \sa is automatically defined and used.
 
-XXX 
-\Note \clmw can be told how long it wants to wait for a reply
-from a slave and if that wait is exceeded the slave is considered a
-problem and forcibly disconnected by the master process. Any tasks
-held by the slave are then handled in accordance to their \tp.
+\begin{lisp}[caption=Default Slave Algorithm]
+(define-mw-slave (argv)
+  (mw-slave-loop-simple))
+\end{lisp}
 
 \subsection{Running a \clmw Application}
 
-A \clmw application can be executed in two ways: interactively at
-a REPL or as a dumped binary from the command line. When running in
-the REPL, there should be a REPL for the master process, and one
-each for the slave processes. At this time it is not recommended
-to start different threads where one is the master and the rest
-are slaves.  From the REPL, the \clmw entry point is the function
-\func{mw-initialize} which takes a list of strings (only) that
-represent the command line arguments of the application. Running
-in the REPL is useful for debugging or incremental development, but
-is not a useful context for production runs of the application in a
-batch processing system.
+A \clmw application can be executed in two ways: interactively at a
+REPL or as a dumped binary from the command line. When running in the
+REPL, there should be a REPL for the master process and one each for
+the slave processes. It is not recommended to start different threads
+where one is the master and the rest are slaves.  From the REPL,
+the \clmw entry point is the function \func{mw-initialize} which
+takes a list of strings that represent the command line arguments
+of the application. Running in the REPL is useful for debugging or
+incremental development.
 
-The preferred means of doing production runs with a \clmw
+The recommended means of doing production runs with a \clmw
 application is via a dumped binary created with the \clmw function
 \func{mw-dump-exec}. When this function is called, the entire lisp
 image will be written into a binary and the lisp image will exit
@@ -694,7 +706,7 @@ process gets an uncaught signal or other terminating error, a stack
 trace created by SBCL's runtime will be emitted from the program to
 facilitate debugging.
 
-\clmw has a collection of knobs which are adjusted via command line
+\clmw has a collection of settings which are adjusted via command line
 options as described on page~\pageref{command-line-arguments}.
 
 \subsection{Network I/O and Task/Result Size}
@@ -1264,7 +1276,7 @@ renames the argv[0] spawned processes to a special name such as
 an XXX.YYY number representing the Condor specific cluster and process
 id of the job.  However, since the executable will be invoked (by
 default) in the current working directory of the scheduler universe
-job, the master can still determine the truename of the specified
+job, the master can still determine the true name of the specified
 executable and we don't have to specify the full path.
 
 \begin{verbatim}
@@ -1780,7 +1792,7 @@ of \clmw with \func{mw-get-unrunnable-tasks}.
 \end{apientry}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\apiheader{The Slave Algorithm}
+\apiheader{\phlabel{slave-algorithm-api}The Slave Algorithm}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%
 \begin{apientry}
@@ -2093,15 +2105,15 @@ number} API for the in memory tasks. Billions of tasks could be run
 through this application, but only a small number are kept in memory
 at any give time to prevent memory exhaustion.
 
-\section{Monte Carlo Pi}
-This example implements the monte carlo algorithm to compute pi. Each
+\section{Monte-Carlo-Pi}
+This example implements the Monte Carlo algorithm to compute pi. Each
 task runs N trials and return N and the number of trials in the
 circle. The master keeps a running sum of the total trials and the
 total number of trials in the circle. At the end of the maximum
 number of iterations, the approximation algorithm is performed with
 the computed ratio and the approximation to pi is produced.
 
-\section{Higher Order}
+\section{Higher-Order}
 This example shows that \tas can be quite versatile. Here the
 \textit{horder} \ta compiles a function presented to it as an argument
 and applies it to the data also presented to it returning the result
