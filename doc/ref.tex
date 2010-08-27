@@ -2092,7 +2092,7 @@ An example file:
 
 \appendix
 
-\chapter{Example Descriptions}
+\chapter{Example Application Descriptions}
 
 \section{Hello-World}
 The canonical example detailed in this manual.
@@ -2100,14 +2100,14 @@ The canonical example detailed in this manual.
 \section{Ping}
 The \ta for this example returns \keyword{ping-ok} if presented with
 a \keyword{ping} argument, or otherwise \keyword{ping-not-ok}. The
-interesting aspect of this example is the use of the \emph{target
-number} API for the in memory tasks. Billions of tasks could be run
-through this application, but only a small number are kept in memory
-at any give time to prevent memory exhaustion.
+interesting aspect of this example is the use of the \emph{general
+target number} API for the in memory tasks. Billions of tasks can
+be run through this application, but only a small number are kept in
+memory at any give time to prevent memory exhaustion.
 
 \section{Monte-Carlo-Pi}
 This example implements the Monte Carlo algorithm to compute pi. Each
-task runs N trials and return N and the number of trials in the
+task runs N trials and returns N and the number of trials in the
 circle. The master keeps a running sum of the total trials and the
 total number of trials in the circle. At the end of the maximum
 number of iterations, the approximation algorithm is performed with
@@ -2138,7 +2138,7 @@ Thain, Mick Beaver, and Alan De Smet, whom acted as sounding boards
 for the implementation and gave great feedback in the design of the
 system, manual, and how a user other than me would want to interact
 with it. In addition, I would like to thank the various denizens at
-\texttt{comp.lang.lisp} and \texttt{\#lisp} for answering many of my
+\texttt{comp.lang.lisp} and \texttt{\#lisp} for answering my many
 questions about Lisp.
 
 \clmw is not an official product from the Condor Project. It is written
