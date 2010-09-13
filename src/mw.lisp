@@ -767,7 +767,7 @@
         (go-away (serialize (list :shutdown))))
     (dolist (slave slaves)
       (with-slots (sid) slave
-        (alog t sid "TRY-SHUTDOWN~%"))
+        (alog t sid "<- TRY-SHUTDOWN~%"))
       (move-slave :sid (mw-slave-sid slave) :where :shutting-down)
       (funcall (mw-slave-controller slave) :writer :send-data go-away)
       (funcall (mw-slave-controller slave) :writer :flush))
@@ -1734,10 +1734,11 @@
     Run the executable in Slave Mode. Required if --mw-master is not set and
     must be first on the command line.
 --mw-master-host <ip address or hostname>
-    When in Master Mode, it is the interface to which the master should
-    bind and is emitted to the heartbeat file if any such file is written.
-    When in Slave Mode, it is the hostname to which the slave process
-    should connect and get work.
+    When in Master Mode, it is the interface (either the hostname or
+    the ip address) to which the master should bind and is emitted to
+    the resource file if any such file is written.
+    When in Slave Mode, it is the hostname, or ip address, to which
+    the slave process should connect and get work.
 --mw-master-port <port>
     To which port should the slave connect for work.
 --mw-max-write-buffer-size <size in bytes>
