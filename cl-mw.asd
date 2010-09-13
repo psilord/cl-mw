@@ -13,7 +13,7 @@
 ;; permissions and limitations under the License.
 
 (defpackage #:cl-mw-asd
-  (:use #:cl #:asdf))
+  (:use :cl :asdf))
 (in-package #:cl-mw-asd)
 
 (defsystem #:cl-mw
@@ -22,7 +22,7 @@
   :author "Peter Keller <psilord@cs.wisc.edu>"
   :licence "Apache License, Version 2.0"
 
-  :depends-on (#:hu.dwim.serializer #:alexandria #:iolib)
+  :depends-on (#:hu.dwim.serializer #:alexandria #:iolib #:cffi)
   :components (
                ;; This is the CL-MW library source code
                (:module module-cl-mw
