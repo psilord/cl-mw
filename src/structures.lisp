@@ -214,6 +214,7 @@
   (style nil)
 
   ;; This is the master host to which the clients will connect.
+  ;; It is also the interface to which the master will bind.
   (master-host nil)
 
   ;; This is the master's port to which the clients will connect.

@@ -363,8 +363,8 @@
               :connect :passive
               :address-family :internet
               :type :stream
-              ;; For now, bind to any interface
-              :local-host +ipv4-unspecified+
+              ;; Master binds to whatever we stated, or whatever (hostname) is.
+              :local-host (mw-conftable-master-host *conftable*)
               ;; this forces the bind-address with a random port
               :local-port 0
               ;; this forces the listen-on
@@ -1601,11 +1601,11 @@
            (when (null master-port)
              (error "When a slave, --mw-master-port must be specified")))
           ((eq style :master)
-           (unless (null resource-file)
-             (when (null master-host)
-               ;; If not specified on the command line, then default
-               ;; to my hostname as defined by uname
-               (setf master-host (hostname))))))
+           (when (null master-host)
+             ;; If not specified on the command line, then default
+             ;; to first hostname of machine.
+             ;; XXX Currently there is no way to say INADDR_ANY.
+             (setf master-host (hostname)))))
 
         ;; If you run close to this number, you'll use a lot of memory
         ;; if you have a lot of clients.
