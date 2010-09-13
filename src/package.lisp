@@ -16,7 +16,8 @@
   (:use #:cl
         #:hu.dwim.serializer
         #:alexandria
-        #:iolib)
+        #:iolib
+        #:cffi)
   (:export
    #:define-mw-master
    #:define-mw-slave
