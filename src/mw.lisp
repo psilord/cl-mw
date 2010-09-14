@@ -1792,7 +1792,7 @@
     acts as a simple sanity check that the correct slaves are connected to the
     correct master process. Default is the string \"default-member-id\".
 --mw-slave-executable <path to executable>
-    This specifies the fully qualified path to a slave executable. It is used
+    This specifies the absolute path to a slave executable. It is used
     when writing the resource file only.
 ")
 

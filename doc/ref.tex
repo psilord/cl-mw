@@ -51,6 +51,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%
+% Latexery
+%%%%%%%%%
+\newcommand{\phlabel}[1]{\phantomsection\label{#1}}
+
+%%%%%%%%%
 % Sigh. Font alterations for latex versus web pages...
 % First arguments means what'll be in the latex, second means what'll be in
 % the latex2html.
@@ -130,10 +135,6 @@
 	{\apifunc{#1}{#2}\begin{quotation}}
 	{\end{quotation}}
 
-%%%%%%%%%
-% Latexery
-%%%%%%%%%
-\newcommand{\phlabel}[1]{\phantomsection\label{#1}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Environments
@@ -458,7 +459,7 @@ This example call of \macro{mw-funcall-echo} is the same as above with
 respect to the task generated and the result expected. However, when
 the result structure associated with this task is presented to the
 \ma, the result will have in it the associated tag of \texttt{1234}.
-The tag of a task may be any lisp form.
+The tag of a task may be any Lisp form.
 
 \begin{barelisp}
 (mw-funcall-echo ("Hello World") :tag 1234)
@@ -566,7 +567,7 @@ removed from the list before the \ma is invoked.  The arguments not
 stripped out are left in the order specified on the command line.
 The return value of the \ma must be an integer in the range of 0 and
 255 (inclusive) and this value becomes the Unix return value for the
-master process. If the return value is any other lisp form other than
+master process. If the return value is any other Lisp form other than
 an integer between 0 and 255, the returned result will be 255.
 
 Driving the \clmw master event loop is one of the main functions
@@ -693,8 +694,8 @@ incremental development.
 
 The recommended means of doing production runs with a \clmw
 application is via a dumped binary created with the \clmw function
-\func{mw-dump-exec}. When this function is called, the entire lisp
-image will be written into a binary and the lisp image will exit
+\func{mw-dump-exec}. When this function is called, the entire Lisp
+image will be written into a binary and the Lisp image will exit
 and any shared libraries which \func{mw-dump-exec} finds as being
 local to the installation to SBCL or any used CL libraries will be
 written to the current working directory. The entry point will be an
@@ -772,9 +773,10 @@ a single \ma, and a single \sa.
 
 The purpose of this minimal example is to show how to create a \ta,
 a \ma, and a \sa. The \ma will create tasks and process the results
-from one or more slaves which connect to the master process. The \ta
-we describe simply concatenates the string arguments with another
-string and returns it.
+from one or more slaves which connect to the master process. The \ta we
+describe simply concatenates the string arguments with another string
+and returns it. Both the master and the slave processes are assumed
+to be on the same machine with both binding to the localhost interface.
 
 We start with the unsurprising ASDF file for the hello-world \clmw application.
 
@@ -789,7 +791,8 @@ We start with the unsurprising ASDF file for the hello-world \clmw application.
 For this next listing we see that \func{mw-master} and \func{mw-slave}
 are functions which are used for testing or debugging in the
 REPL. Notice we re-export the \mwpackage symbol \func{mw-dump-exec}
-from our application package.
+from our application package which helps us easily save the lisp image
+into a binary at a later time.
 
 \begin{lisp}[caption=\file{package.lisp}]
 (defpackage #:cl-mw.examples.hello-world
@@ -870,9 +873,9 @@ and testing the application in the REPL.
 \begin{lisp}[caption=\file{hello-world.lisp: \bold{Part 4 of 4}}]
 (defun mw-master ()
   (mw-initialize 
-    '("--mw-master" "--mw-slave-task-group" "100"
+    '("--mw-master" "--mw-slave-task-group" "10"
                     "--mw-master-host" "localhost"
-                    "--mw-slave-result-group" "100")))
+                    "--mw-slave-result-group" "10")))
 
 (defun mw-slave (port)
   (mw-initialize 
@@ -884,15 +887,24 @@ and testing the application in the REPL.
 \section{Running Hello-World in the REPL}
 
 Now, let's run this example in the REPL so we can see how it
-works. First, we'll set up and run the master process. We initially
-call our master process's helper function which enters the \clmw
-library with lots of interesting options. In this example, we're
-packaging together up to 100 tasks to a slave, and expecting up to
-100 results back from a slave in one network communication.
+works. First, we'll set up and run the master process. We call our
+master helper function to start the master process.  We're packaging
+together 10 tasks to an idle slave and expecting 10 results back from
+any particular slave. Otherwise 1 task will be sent and 1 result sent
+back from the slave. Grouping the tasks or results together makes the
+network communication more efficient.  The master is told to start
+up on the \texttt{localhost} interface. There is no method to start
+the master bound to all interfaces.
+
+In the log output below, the member id token of the master and
+slave is \bold{``default-member-id''}. In normal use, this should
+probably be changed to be unique to the specific master/slave
+computation. Please see the section on command line arguments on
+page~\pageref{command-line-arguments} for how to do this.
 
 \small
 \begin{verbatim}
-Linux black > sbcl
+> sbcl
 This is SBCL 1.0.39.16, an implementation of ANSI Common Lisp.
 More information about SBCL is available at <http://www.sbcl.org/>.
 
@@ -909,7 +921,7 @@ T
 
 * (mw-master)
 07/20/2010 23:15:42 [A] INIT MASTER "default-member-id"
-07/20/2010 23:15:42 [A] MASTER READY 0.0.0.0:52942
+07/20/2010 23:15:42 [A] MASTER READY 127.0.0.1:52942
 \end{verbatim}
 \normalsize
 
@@ -917,13 +929,14 @@ At this point, the master process has already created some hello
 world tasks and is waiting for some slaves to connect. The output
 lines with \texttt{[A]} in them are emitted as an audit trail by the
 \clmw library.  The \bold{``default-member-id''} is the membership
-value of the master which the slave must match. Let's start up a slave
+token of the master which the slave must match. Let's start up a slave
 with our helper slave initialization function and pass in the port
-number of the master process.
+number of the master process---because for this example the helper
+slave function assumes localhost.
 
 \small
 \begin{verbatim}
-Linux black > sbcl
+> sbcl
 This is SBCL 1.0.39.16, an implementation of ANSI Common Lisp.
 More information about SBCL is available at <http://www.sbcl.org/>.
 
@@ -943,7 +956,7 @@ T
 07/20/2010 23:23:47 [A] MASTER <- CONNECTED TO 127.0.0.1:52942 \
                         FROM 127.0.0.1:47768
 07/20/2010 23:23:47 [A] MASTER -> ID SLAVE-0
-07/20/2010 23:23:47 [A] MASTER -> 10 tasks (100 grouping)
+07/20/2010 23:23:47 [A] MASTER -> 10 tasks (10 grouping)
 07/20/2010 23:23:47 [A] MASTER <- 10 results
 07/20/2010 23:23:47 [A] MASTER -> SHUTDOWN
 Slave algo cleanup form.
@@ -979,7 +992,7 @@ Got result from slave: "Hello World: Task 7"
 Got result from slave: "Hello World: Task 8"
 Got result from slave: "Hello World: Task 9"
 Master algo cleanup form.
-07/20/2010 23:23:47 [A] SLAVE-0 TRY-SHUTDOWN
+07/20/2010 23:23:47 [A] SLAVE-0 <- TRY-SHUTDOWN
 07/20/2010 23:23:47 [A] SLAVE-0 -> :shutting-down
 07/20/2010 23:23:47 [A] SLAVE-0 -> :disconnected
 07/20/2010 23:23:47 [A] EOF -> 127.0.0.1:47768
@@ -989,54 +1002,61 @@ Master algo cleanup form.
 \end{verbatim}
 \normalsize
 
-\Note The audit lines have been reformatted slightly to fit onto
-a manual page, they do not have the traditional line continuation
-characters in them.
+\Note The audit lines have been reformatted slightly to fit. They do
+not have the traditional shell line continuation characters in them.
 
 We see that the master had packaged all ten tasks into one packet and
 sent it to the slave. After getting the results--also in one packet,
 back, it printed them out. At this point the results have equaled
-the tasks in the \ma and it returns. The \clmw enters the shutdown
+the tasks in the \ma and it returns. \clmw enters the shutdown
 phase where it actively tried to shut off all known slaves and then
 exit with the return code the \ma generated. If a severe problem
 arose during shutdown, then the return code will be set to 255.
 
 \section{Producing an Executable}
 
-Exported from the \mwpackage is the function \func{mw-dump-exec}
-which performs the act of saving the lisp image as an executable
-to the current working directory. This function should also be
-re-exported from the package in which the \clmw application exists
-to make it easy to write an executable in the correct package. The
-function \func{mw-dump-exec} performs a special action when it comes
-to shared libraries currently loaded by the lisp image.  Any shared
-libraries currently loaded by the lisp image with a fully qualified
-path will be copied to the current working directory. The lisp image
-will be updated to look for the library in the path \file{./} when
-the saved executable is started. The purpose of this is that when the
-executable is shipped to another machine for execution as a slave, the
-needed shared libraries will most likely not be present. This mechanism
-provides an automated means by which the libraries can be discovered
-for shipping along with the executable to the execution machine.
+The \mwpackage exports the function \func{mw-dump-exec} which saves
+the Lisp image as an executable to the current working directory. We
+recommend that this function be re-exported from the application
+package built on top of the \mwpackage as shown previously in the
+ASDF file for this example. Exporting this function makes it trivial
+to produce an executable---one just \bold{require}s the package,
+then \bold{use-package}s it, and then calls \func{mu-dump-exec}
+to produce the binary. 
 
-Notice that \sbcl is started up with the \Option{disable-debugger}
-option which tells \sbcl to dump a stack trace and exit when something
-has gone wrong in the executable instead of dropping into a prompt
-in a debugger and waiting for input to arrive.  Dropping into the
-debugger is one of a few things in the execution environment that
-can be altered with various command line options to \sbcl. Another
-common alteration to set is how big the heap is in the runtime.
-The default runtime heap size is operating system specific. On the
-Linux machine upon which I developed \clmw, it was 512MB and so
-each invocation of the master and slave executable, about 512MB of
-memory will be requested from the operating system even if it isn't
-all used. Depending upon your \ma and \tas, you may need to tune the
-runtime heap size to fit the computation requirements. Please see the
-\sbcl manual for more tunable options as needed by your computation.
+\func{mw-dump-exec} will copy any currently loaded libraries
+with an absolute path into the current working directory.
+\func{mu-dump-exec} will update the Lisp image to look for the
+dumped libraries in the path \file{./} when the saved executable
+is started.  Libraries with relative paths are ignored by default;
+they are typically widely available system libraries.  This simplifies
+collecting required libraries that may not be present on the slave
+system.
+
+How the lisp image is started before the executable is produced is
+important.  We start \sbcl up with the \Option{disable-debugger} option
+which tells \sbcl to dump a stack trace and exit when something has
+gone wrong in the executable---such as the signaling of an unhandled
+condition. Otherwise, \sbcl will drop into an interactive debugging
+session and wait for input to arrive. Disabling the debugger prevents
+the executable from having a problem and then consuming valuable
+compute time on a resource waiting for input which will never come.
+
+Dropping into the debugger is one of a few things in the execution
+environment that can be altered with various command line options
+to \sbcl. Another common adjustment to set is how big the heap is in
+the Lisp image runtime.  The default runtime heap size is operating
+system specific. On the Linux machine upon which I developed \clmw,
+it was 512MB and so for each invocation of the master and slave
+executable, about 512MB of memory will be requested from the operating
+system---even if it isn't all used by the application. Depending upon
+your \ma and \tas, you may need to tune the runtime heap size to fit
+the computation requirements. Please see the \sbcl manual for more
+tunable options as needed by your computation.
 
 \small
 \begin{verbatim}
-Linux black > sbcl --disable-debugger
+> sbcl --disable-debugger
 This is SBCL 1.0.39.16, an implementation of ANSI Common Lisp.
 More information about SBCL is available at <http://www.sbcl.org/>.
 
@@ -1075,69 +1095,63 @@ writing 3512 bytes from the read-only space at 0x01000000
 writing 2256 bytes from the static space at 0x01100000
 writing 38322176 bytes from the dynamic space at 0x09000000
 done]
-
-Linux black >
 \end{verbatim}
 \normalsize
 
-The first thing \func{mw-dump-exec} did was iterate over all of the
-shared libraries being used by the lisp image. \func{mw-dump-exec}
-figured out that the particular shared library \file{libio-syscalls.so}
-used by IOLib (a package needed by \clmw) needed to be processed.
-Processing a shared library in this manner means that the actual library
-file is copied into the current working directory, and then the lisp image
-is adjusted to look in the path \file{./} for the library in question.
-The library \file{librt.so} didn't have a fully qualified path and that means
-(generally) that it is in the system path and is likely available on other
-machines. If \func{mw-dump-exec} isn't told otherwise, the name of the binary
-it dumps is \file{a.out}.
+\func{mw-dump-exec} iterated over all of the shared libraries being
+used by the Lisp image. \func{mw-dump-exec} determined that the shared
+library \file{libio-syscalls.so} used by IOLib (a package needed by
+\clmw) must be included and the actual library file is copied into
+the current working directory. Then the Lisp image is adjusted to
+look in the path \file{./} for \file{libio-syscalls.so}.  The library
+\file{librt.so} didn't have an absolute path and, by default, won't
+be copied. If \func{mw-dump-exec} isn't told otherwise, the name of
+the binary it dumps is \file{a.out}. You can supply a different executable
+name to \func{mw-dump-exec}, see page~\pageref{mw-dump-exec} for details.
 
-If this executable is supplied with the same arguments as defined in
-\func{mw-master} and another invocation started with the same arguments
-as defined in \func{mw-slave} (adjusting for the master's host and
-port!), then you will see similar output as the slave executes the
-master's tasks.
+If this executable is supplied with the same arguments
+to \func{mw-initialize} as defined in the helper function
+\func{mw-master} and another invocation started with the same
+arguments to \func{mw-initialize} as defined in the helper function
+\func{mw-slave} (adjusting for the master's host and port!), then
+you will see similar output as the slave executes the master's tasks.
 
 Here we see the executable and the shared libraries with which it should be
 bundled when moved to another machine for execution:
 
 \small
 \begin{verbatim}
-Linux black > ls a.out *.so
+> ls a.out *.so
 -rwxr-xr-x 1 psilord psilord 38948892 Jul 20 23:44 a.out*
 -rw------- 1 psilord psilord     7235 Jul 20 23:44 libiolib-syscalls.so
-Linux black >
 \end{verbatim}
 \normalsize
 
-\Important A current limitation of \clmw is that any dumped
-shared libraries MUST exist in the current working directory
-when the main binary is invoked for them to be found by the
-restarting binary. Relative paths or the environment variable
-\EnvVar{LD\_LIBRARY\_PATH} do not work properly.
+\Important Any dumped shared libraries \bold{must} exist in the
+current working directory when the main binary is invoked for them to
+be found by the restarting binary. Relative paths and the environment
+variable \EnvVar{LD\_LIBRARY\_PATH} do not work properly.
 
 \section{The Audit File}
 
-The master and slave process both can emit their
+The master and slave process both can write their
 audit trail to a specified file. This is done with the
 \OptionV{mw-audit-file}{file-name} command line option. When this
-option is used, every emitted line above with an \texttt{[A]} in it
-will be emitted to the specified audit file. Any other output that
-the \ma or \sa creates will go to \var{*standard-output*} or to
-wherever those are bound. 
+option is used, every written line above with an \texttt{[A]} in it
+will be written to the specified audit file. Any other output that the
+\ma or \sa creates will go to \var{*standard-output*} or to wherever
+that is bound.
 
-\Limitation In this version of \clmw the audit files do not rotate
-and can grow unboundedly. The audit file will be appended to if it
-exists upon start of the master or slave process.
+\Limitation The audit files do not rotate and can grow unboundedly. The
+audit file will be appended to if it exists upon start of the master
+or slave process.
 
-The author of \clmw made a decision to do minimal statistics
-bookkeeping in the \clmw code base in order to simplify the code and
-lower its maintenance costs.  Therefore audit files are useful because
-from them, one can data-mine interesting aspects of the application's
-run, such as: how many slaves are connected, slave churn rate, subnet
-location of slaves, tasks processed per time interval, etc.
+\clmw does minimal statistics bookkeeping. The audit files can be used
+to answer questions about the application's run. For example, how many
+slaves are connected, what is the slave churn rate, on what subnet are
+the slaves, or how many tasks were processed for a given time interval.
 
-The format of the audit file may change in a future revision of \clmw.
+\Note The format of the audit file may change in a future revision of \clmw.
 
 \chapter{Interfacing with Existing Batch Systems}
 
@@ -1419,10 +1433,11 @@ handed to the \ma.
     Run the executable in Slave Mode. Required if \Option{mw-master} is not set
 	and must be first on the command line.
 \item[\OptionV{mw-master-host}{ip-address-or-hostname}]
-    When in Master Mode, it is the interface to which the master should
-    bind and is emitted to the resource file if any such file is written.
-    When in Slave Mode, it is the hostname to which the slave process
-    should connect and get work.
+    When in Master Mode, it is the interface (either the hostname or
+    the ip address) to which the master should bind and is emitted to
+    the resource file if any such file is written.
+    When in Slave Mode, it is the hostname, or ip address, to which
+    the slave process should connect and get work.
 \item[\OptionV{mw-master-port}{port}]
     To which port should the slave connect for work.
 \item[\OptionV{mw-max-write-buffer-size}{size-in-bytes}]
@@ -1477,12 +1492,12 @@ handed to the \ma.
     abort the connection to the slave. Defaults to 1.
 \item[\OptionV{mw-member-id}{string}]
     This is a token which must match between the slave and the master. It is
-    used to unsecurely identify a working group of masters and slave. In a
+    used to insecurely identify a working group of masters and slave. In a
     harsh environment with many masters and slaves going up and down, this
     acts as a simple sanity check that the correct slaves are connected to the
     correct master process. Default is the string "default-member-id".
 \item[\OptionV{mw-slave-executable}{path-to-executable}]
-    This specifies the fully qualified path to a slave executable. It is used
+    This specifies the absolute path to a slave executable. It is used
     when writing the resource file only.
 \end{description}
 
@@ -1991,13 +2006,14 @@ If the \emph{value} is less than zero, then return 0, otherwise return the
 
 %%%
 \begin{apientry}
+\phlabel{mw-dump-exec}
 {mw-dump-exec \&key (\emph{exec-name} "a.out") (\emph{libs} :automatic)}
 {Function}
 Create an executable named \emph{exec-name} in the current
 working directory.  The variable \emph{libs} may be one of
 \emph{:none}, \emph{:automatic}, or \emph{:all}. If \emph{libs} is
 \texttt{:automatic} (the default and currently the only choice) then
-any libraries heuristically found to be ``unique'' to the lisp image
+any libraries heuristically found to be ``unique'' to the Lisp image
 will also be copied to the current working directory. The libraries
 must be shipped with the executable to any target machine.
 
@@ -2021,7 +2037,7 @@ A ubiquitous macro which implements the usual ``while'' loop control flow.
 \label{resource-file}
 
 Each form in the \rfile is a two item list where the first item
-is the attribute name as a keyword, and the second an arbitrary lisp
+is the attribute name as a keyword, and the second an arbitrary Lisp
 form whose schema depends upon the specific attribute. They take the
 form of:\\
 
