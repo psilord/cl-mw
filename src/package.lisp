@@ -17,7 +17,8 @@
         #:hu.dwim.serializer
         #:alexandria
         #:iolib
-        #:cffi)
+        #:cffi
+	#:cl-ppcre)
   (:export
    #:define-mw-master
    #:define-mw-slave

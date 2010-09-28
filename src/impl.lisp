@@ -56,9 +56,124 @@
                                ret)
                        255)))))
 
-;; SBCL specific
-;; :all, :automatic, :none
-(defun mw-dump-exec (&key (exec-name "./a.out") (libs :automatic))
+;; Perform the body, which is assumed to open the stream strm in question
+;; and write to it.
+(defmacro stream->string-list ((strm) &body body)
+  (let ((g (gensym))
+        (h (gensym)))
+    `(let ((,h '()))
+       (with-input-from-string
+           (,g (with-output-to-string (,strm)
+                 (progn
+                   ,@body)))
+         (loop while (let ((line (read-line ,g nil)))
+                       (when line
+                         (push line ,h))
+                       line))
+         (nreverse ,h)))))
+
+;; Convert the machine type to a keyword.
+(defun get-machine-type ()
+  (let ((mt (machine-type)))
+    (cond
+      ((equalp "X86" mt)
+       :x86)
+      ((equalp "X86-64" mt)
+       :x86-64)
+      (t
+       (error "Unknown machine type ~A, please port!~%" mt)))))
+
+;; Given a list of flags associated with a line from ldconfig -p, find me
+;; the library type the library is.
+(defun find-lib-type (split-flags)
+  (if (find "libc6" split-flags :test #'equalp)
+      "libc6"
+      (if (find "ELF" split-flags :test #'equalp)
+          "ELF"
+          (assert "Unknown lib type. Please port!~%"))))
+
+;; Given a list of flags associated with a line from the ldconfig -p, find
+;; me the specific architecture associated with the library.
+(defun find-lib-arch (split-flags)
+  (if (find "x86-64" split-flags :test #'equalp)
+      :x86-64
+      :x86))
+
+;; Take a line from the ldconfig -p output and merge it with the rest
+;; of the lines in the hashtable ht.
+(defun merge-ld.so.cache-line (bare-lib split-flags absolute-lib ht)
+  ;; Ensure the bare-lib has a hash table entry in the master table.
+  (when (null (gethash bare-lib ht))
+    (setf (gethash bare-lib ht) (make-hash-table :test #'equalp)))
+
+  ;; The type of the library is either libc6 or ELF, but not both. So
+  ;; find out which one it is and set the type in the hash table value
+  ;; for the library in question. Ensure the type didn't change!
+  (let ((lib-type (find-lib-type split-flags))
+        (vht (gethash bare-lib ht)))
+    (let ((prev-lib-type (gethash :type vht)))
+      (if (null prev-lib-type)
+          (setf (gethash :type vht) lib-type)
+          (when (not (equal prev-lib-type lib-type))
+            (error "~A changed library type!" bare-lib)))))
+
+  ;; For each arch, if the value list doesn't exist, make one and
+  ;; insert it, otherwise insert the entry at the end of the list. We
+  ;; do it at the end because we're following the search order as
+  ;; found in order.
+  (let ((lib-arch (find-lib-arch split-flags))
+        (vht (gethash bare-lib ht)))
+    (let ((prev-lib-list (gethash lib-arch vht)))
+      (if (null prev-lib-list)
+          (setf (gethash lib-arch vht) (list absolute-lib))
+          (rplacd (last (gethash lib-arch vht)) (list absolute-lib))))))
+
+(defun parse-ld.so.cache (&key (program "/sbin/ldconfig") (args '("-p")))
+  ;; Read all of the output of the program as lines.
+  (let ((ht (make-hash-table :test #'equalp))
+        (lines (stream->string-list
+                   (out-stream)
+                 (sb-ext:process-close
+                  (sb-ext:run-program program args :output out-stream)))))
+
+    ;; Pop the first line off, it is a count of libs and other junk
+    (pop lines)
+
+    ;; Assemble the master hash table which condenses the ldconfig -p info
+    ;; into a meaninful object upon which I can query.
+    (dolist (line lines)
+      (register-groups-bind
+          (bare-lib flags absolute-lib)
+          ("\\s*(.*)\\s+\\((.*)\\)\\s+=>\\s+(.*)\\s*" line)
+
+        (let ((split-flags
+               (mapcar #'(lambda (str)
+                           (setf str (regex-replace "^\\s+" str ""))
+                           (regex-replace "\\s+$" str ""))
+                       (split "," flags))))
+          (merge-ld.so.cache-line bare-lib split-flags absolute-lib ht))))
+    ht))
+
+;; Convert a bare-lib into an absolute path depending upon
+;; architecture and whatnot. Either returns an absolute path, or nil.
+;;
+;; Can specify an ordering of :all, :first (the default), or :last.
+;; The ordering of :all will present the lirbaries in the order found
+;; out of the output for ldconfig -p.
+(defun query-ld.so.cache (bare-lib ht &key (ordering :first))
+  (let ((vht (gethash bare-lib ht)))
+    (if (null vht)
+        nil
+        (let ((all-absolute-libs (gethash (get-machine-type) vht)))
+          (ecase ordering
+            (:all
+             all-absolute-libs)
+            (:first
+             (car all-absolute-libs))
+            (:last
+             (last all-absolute-libs)))))))
+
+(defun mw-dump-exec (&key (exec-name "./a.out"))
   ;; XXX Does this actually do anything to the saved lisp image? Do
   ;; permutation testing to figure it out.
   (push (truename #P"./") cffi:*foreign-library-directories*)
@@ -67,46 +182,61 @@
   (format t "######################################~%")
   (format t "# Processing loaded shared libraries #~%")
   (format t "######################################~%")
-  (let ((shlibs nil))
-    (unless (eq libs :none)
-      (dotimes (i (length sb-sys:*shared-objects*))
-        (with-slots (pathname namestring)
-            (nth i sb-sys:*shared-objects*)
+  (let ((shlibs nil)
+        (ld.so.cache (parse-ld.so.cache)))
+    (dotimes (i (length sb-sys:*shared-objects*))
+      (with-slots (pathname namestring)
+          (nth i sb-sys:*shared-objects*)
 
-          ;; Any shared library using a fully qualified path gets copied
-          ;; to the current working directory (where the executable is
-          ;; going to show up) and the in memory shared object
-          ;; structures get fixated to know to look in ./ for those
-          ;; specific ones.
-          (format t "Shared-library: ~A..." namestring)
+        ;; Any shared library using a fully qualified path gets copied
+        ;; to the current working directory (where the executable is
+        ;; going to show up) and the in memory shared object
+        ;; structures get fixated to know to look in ./ for those
+        ;; specific ones.
+        ;;
+        ;; Any library which is a (assumed) bare library, we look it
+        ;; up in the ld.so.cache to find which library we should dump
+        ;; to the current working directory. This is assumed to be the
+        ;; library that dlopen() would have chosen.
+        (format t "Shared-library: ~A..." namestring)
+        (let ((base (concatenate 'string "./"
+                                 (file-namestring namestring))))
           (if (char-equal (char namestring 0) #\/)
+              ;; shared library is already an absolute path
               (progn
-                (let ((base (concatenate 'string "./"
-                                         (file-namestring namestring))))
+                (format t "dumping...")
+                (copy-file namestring base))
+              ;; A bare shared library, look it up similar to dlopen()
+              ;; to find an absolute path to the library.
+              (progn
+                (format t "looking up...")
+                (let ((abs-lib (query-ld.so.cache namestring ld.so.cache)))
+                  (format t "found ~A..." abs-lib)
                   (format t "dumping...")
-                  ;; Copy the library from wherever it was originally
-                  ;; found to here.
-                  (copy-file namestring base)
+                  (copy-file abs-lib base))))
 
-                  (format t "fixating.~%")
-                  ;; Reset the in memory shared library object to
-                  ;; reference the local one right here. This means
-                  ;; wherever you run the executable, the shared
-                  ;; libraries better be in the same directory as the
-                  ;; executable.
-                  (setf namestring base)
-                  (setf pathname (pathname base))
-                  (push base shlibs)))
-              (format t "ignore.~%"))))
+          (format t "fixating.~%")
+          ;; Reset the in memory shared library object to
+          ;; reference the local one right here. This means
+          ;; wherever you run the executable, the shared
+          ;; libraries better be in the same directory as the
+          ;; executable.
+          (setf namestring base)
+          ;; XXX Which one of these two is better?
+          ;;(setf pathname (pathname base))
+          (setf namestring
+                (sb-alien::native-namestring
+                 (translate-logical-pathname base) :as-file t))
+          (push base shlibs))))
 
-      (unless (null shlibs)
-        ;; Store the relative libraries for later understanding when we restart
-        (setf *library-dependencies* shlibs)
-        (terpri)
-        (format t "########################################################~%")
-        (format t "#  Please package these libraries with your executable #~%")
-        (format t "########################################################~%")
-        (format t "~{~A~%~}" shlibs))))
+    (unless (null shlibs)
+      ;; Store the relative libraries for later understanding when we restart
+      (setf *library-dependencies* shlibs)
+      (terpri)
+      (format t "########################################################~%")
+      (format t "#  Please package these libraries with your executable #~%")
+      (format t "########################################################~%")
+      (format t "~{~A~%~}" shlibs)))
 
   (terpri)
   (format t "####################################~%")
@@ -114,21 +244,3 @@
   (format t "####################################~%")
   (sb-ext:save-lisp-and-die exec-name :toplevel #'_init :executable t
                             :purify t :save-runtime-options t))
-
-
-;; Efficiently copy a file from one location on disk to another
-;; location on disk.
-(defun copy-file (iname oname &optional (buffer-size (* 1024 1024)))
-  (with-open-file (fin iname :direction :input
-                       :element-type '(unsigned-byte 8))
-    (with-open-file (fout oname :direction :output
-                          :element-type '(unsigned-byte 8)
-                          :if-exists :supersede
-                          :if-does-not-exist :create)
-
-      (do* ((buffer (make-array buffer-size :element-type
-                                (stream-element-type fin)))
-            (nread (read-sequence buffer fin) (read-sequence buffer fin))
-            (total 0 (+ total nread)))
-           ((zerop nread) total)
-        (write-sequence buffer fout :end nread)))))

@@ -22,7 +22,7 @@
   :author "Peter Keller <psilord@cs.wisc.edu>"
   :licence "Apache License, Version 2.0"
 
-  :depends-on (#:hu.dwim.serializer #:alexandria #:iolib #:cffi)
+  :depends-on (#:hu.dwim.serializer #:alexandria #:iolib #:cffi #:cl-ppcre)
   :components (
                ;; This is the CL-MW library source code
                (:module module-cl-mw
@@ -41,5 +41,7 @@
                                                          "stable"
                                                          "structures"
                                                          "packet-buffer"))
+                                     (:file "file-utils"
+                                            :depends-on ("package"))
                                      (:file "impl"
-                                            :depends-on ("mw"))))))
+                                            :depends-on ("mw" "file-utils"))))))
