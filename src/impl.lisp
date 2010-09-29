@@ -128,6 +128,23 @@
           (setf (gethash lib-arch vht) (list absolute-lib))
           (rplacd (last (gethash lib-arch vht)) (list absolute-lib))))))
 
+;; The result of this function is a hash table which contains entries
+;; about how to map bare library names to absolute paths as generated
+;; from ldconfig -p.
+;;
+;; In a perl-ish dialect, you get:
+;; %hash = (
+;;   "libm.so.6" => (
+;;      "type" => "libc6"
+;;      "X86-64" => ("/lib64/libm.so.6")
+;;      "X86" => ("/lib/tls/libm.so.6" "/lib/i686/libm.so.6" "/lib/libm.so.6")
+;;   )
+;;   "libGLU.so.1" => (
+;;      "type" => "libc6"
+;;      "X86-64" => ("/usr/X11R6/lib64/libGLU.so.1" "/usr/lib64/libGLU.so.1")
+;;      "X86" => ("/usr/X11R6/lib/libGLU.so.1" "/usr/lib/libGLU.so.1")
+;;   )
+;; )
 (defun parse-ld.so.cache (&key (program "/sbin/ldconfig") (args '("-p")))
   ;; Read all of the output of the program as lines.
   (let ((ht (make-hash-table :test #'equal))
