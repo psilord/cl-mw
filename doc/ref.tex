@@ -104,7 +104,9 @@
 \newcommand{\genmacro}[2]{\mbox{\texttt{#1\textit{#2}}}\xspace}
 \newcommand{\genmacroname}[1]{\mbox{\texttt{#1\textit{name}}}\xspace}
 
+\newcommand{\syscall}[1]{\mbox{\texttt{#1()}}\xspace}
 \newcommand{\file}[1]{\texttt{#1}\xspace}
+\newcommand{\bool}[1]{\texttt{#1}\xspace}
 \newcommand{\bold}[1]{\textbf{#1}\xspace}
 \newcommand{\opt}[1]{\texttt{#1}\xspace}
 \newcommand{\val}[1]{\textit{#1}\xspace}
@@ -240,7 +242,7 @@ numberbychapter=true,
 	 \begin{itemize}}
 	{\end{itemize}}
 \newcommand{\removed}{\item \bold{Removed:}\xspace}
-\newcommand{\obselete}{\item \bold{Obselete:}\xspace}
+\newcommand{\obsolete}{\item \bold{Obsolete:}\xspace}
 \newcommand{\deprecate}{\item \bold{Deprecated:}\xspace}
 \newcommand{\info}{\item \bold{Info:}\xspace}
 \newcommand{\newfeature}{\item \bold{NewFeature:}\xspace}
@@ -253,7 +255,7 @@ numberbychapter=true,
 \hyphenation{de-struct-ur-ing}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% The beginning od the document
+% The beginning of the document
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{document}
@@ -608,7 +610,7 @@ retrieve the list of connected slaves.
 The function \func{mw-get-connected-ordered-slaves} returns a list
 of \\ SLAVE-IDs which can be used as the \texttt{:sid} field with the
 macro \macro{mw-funcall-*}.  If no ready ordered slaves are available,
-then NIL is returned. Connected ordered slaves accumulate in that
+then \bool{NIL} is returned. Connected ordered slaves accumulate in that
 list until the \ma uses \\ \func{mw-get-connected-ordered-slave}
 to retrieve them.  If at any time ordered slaves disconnect, the
 function \func{mw-master-loop} will notify the \ma of the change
@@ -1021,17 +1023,27 @@ recommend that this function be re-exported from the application
 package built on top of the \mwpackage as shown previously in the
 ASDF file for this example. Exporting this function makes it trivial
 to produce an executable---one just \bold{require}s the package,
-then \bold{use-package}s it, and then calls \func{mu-dump-exec}
+then \bold{use-package}s it, and then calls \func{mw-dump-exec}
 to produce the binary. 
 
-\func{mw-dump-exec} will copy any currently loaded libraries
-with an absolute path into the current working directory.
-\func{mu-dump-exec} will update the Lisp image to look for the
-dumped libraries in the path \file{./} when the saved executable
-is started.  Libraries with relative paths are ignored by default;
-they are typically widely available system libraries.  This simplifies
-collecting required libraries that may not be present on the slave
-system.
+\func{mw-dump-exec} simplifies collecting required libraries that
+may not be present on the slave system.  \func{mw-dump-exec} will
+copy any currently loaded libraries with an absolute path into the
+current working directory. For libraries without any path, it will
+approximate the search algorithm used by \syscall{dlopen} to find an
+absolute path for the library and then copy it to the current working
+directory. \func{mw-dump-exec}, with the \keyword{ignore-libs} keyword
+argument, can be told to ignore specific libraries loaded by the lisp
+image. One would supply a list of strings representing unqualified
+library names to be ignored. Libraries can also be remapped, with
+the \keyword{remap-libs} keyword argument, from their unqualified
+name to a specific path. An association list should be supplied
+with \keyword{remap-libs} which maps unqualified library names to
+absolute paths. Ignoring a library overrides a remap of a library,
+and a remap of a library overrides the auto detection of the library's
+absolute path.  \func{mu-dump-exec} will update the Lisp image to
+look for the dumped libraries in the path \file{./} when the saved
+executable is started.
 
 How the lisp image is started before the executable is produced is
 important.  We start \sbcl up with the \Option{disable-debugger} option
@@ -1079,11 +1091,13 @@ T
 Shared-library: /home/psilord/content/code/lisp/clbuild/source\
                 /iolib/src/syscalls/libiolib-syscalls.so...\
                 dumping...fixating.
-Shared-library: librt.so...ignore.
+Shared-library: librt.so...looking up...found \
+                /usr/lib/librt.so...dumping...fixating.
 
 ########################################################
 #  Please package these libraries with your executable #
 ########################################################
+./librt.so
 ./libiolib-syscalls.so
 
 ####################################
@@ -1101,13 +1115,16 @@ done]
 \func{mw-dump-exec} iterated over all of the shared libraries being
 used by the Lisp image. \func{mw-dump-exec} determined that the shared
 library \file{libio-syscalls.so} used by IOLib (a package needed by
-\clmw) must be included and the actual library file is copied into
-the current working directory. Then the Lisp image is adjusted to
-look in the path \file{./} for \file{libio-syscalls.so}.  The library
-\file{librt.so} didn't have an absolute path and, by default, won't
-be copied. If \func{mw-dump-exec} isn't told otherwise, the name of
-the binary it dumps is \file{a.out}. You can supply a different executable
-name to \func{mw-dump-exec}, see page~\pageref{mw-dump-exec} for details.
+\clmw) must be included and the actual library file is copied into the
+current working directory. Then the Lisp image is adjusted to look in
+the path \file{./} for \file{libio-syscalls.so}.  \func{mw-dump-exec}
+noticed that \file{librt.so} didn't have an absolute path but had a
+successful search for an absolute path to the library.  This library
+is also copied to the current working directory and the lisp image
+adjusted to find it. If \func{mw-dump-exec} isn't told otherwise, the
+name of the binary it dumps is \file{a.out}. You can supply a different
+executable name to \func{mw-dump-exec}, see page~\pageref{mw-dump-exec}
+for details.
 
 If this executable is supplied with the same arguments
 to \func{mw-initialize} as defined in the helper function
@@ -1556,16 +1573,17 @@ a submitted task.
 \phlabel{task-policy}
 \item[sid \textit{SLAVE-ID}] Send the task to a specific slave denoted by 
 					\textit{SLAVE-ID}.
-                    If NIL, this task is considered \un, otherwise it is 
+                    If \bool{NIL}, this task is considered \un, otherwise it is 
 					a \ord task. 
 \item[tag \textit{FORM}] A form which will appear unchanged in the result
-			structure associated with the computed task. The default is NIL.
+			structure associated with the computed task. The default is 
+			\bool{NIL}.
 \item[do-it-anyway {[T \textit{or} NIL]}] If the task was a 
 							\ord task and the slave disconnected, then should
 							this task be moved into the \un group (yes if T),
-							or become unrunnable (yes if NIL)? By default \ord
-							tasks become unrunnable if the associated slave is
-							disconnected. 
+							or become unrunnable (yes if \bool{NIL})? 
+							By default \ord tasks become unrunnable if the 
+							associated slave is disconnected. 
 \item[retry {[T \textit{or} NIL]}] If an unordered task was assigned to a 
 			slave and the slave went away, then this controls if we should
 			retry on a different slave or if the task becomes unrunnable. If
@@ -1722,14 +1740,14 @@ too low could result in excessive CPU utilization.
 \begin{apientry}
 {mw-get-unrunnable-tasks}
 {Function}
-Return all currently unrunnable task structures in a list or NIL if none.
+Return all currently unrunnable task structures in a list or \bool{NIL} if none.
 \end{apientry}
 
 %%%
 \begin{apientry}
 {mw-get-results}
 {Function}
-Return all currently finished result structures in a list or NIL if none.
+Return all currently finished result structures in a list or \bool{NIL} if none.
 \end{apientry}
 
 %%%
@@ -1737,7 +1755,7 @@ Return all currently finished result structures in a list or NIL if none.
 {mw-get-connected-ordered-slaves}
 {Function}
 If there are any connected ordered slaves ready for use, this will
-retrieve the list of slave ids or NIL if none. In practice each slave
+retrieve the list of slave ids or \bool{NIL} if none. In practice each slave
 id is a string, but generally they are an opaque data structure used
 to uniquely identify a slave. You should use \func{equal} to check
 quality between slave ids.
@@ -1844,11 +1862,11 @@ This function will return 6 values in this order:
 \item[master-disconnect]
 	Did the master close the connection to the client (or under some conditions
 	\clmw wanted to immediately exit due to some problem in the environment).
-	T if the master cut the connection or the library wanted to exit, NIL
-	otherwise.
+	T if the master cut the connection or the library wanted to exit, 
+	\bool{NIL} otherwise.
 \item[explicit-shutdown]
 	Did the master send a shutdown command to the slave according to the
-	master/slave protocol?  T if it did and NIL if it didn't.
+	master/slave protocol?  T if it did and \bool{NIL} if it didn't.
 \item[total-results-completed]
 	The number of total results which have been completely processed by the 
 	slave.
@@ -1912,14 +1930,14 @@ will result in excessive CPU usage by the slave process.
 {mw-task-sid \emph{task-structure}}
 {Function}
 Returns the slave-id for which the \emph{task-structure} was destined. 
-If the task is \un, then NIL is returned.
+If the task is \un, then \bool{NIL} is returned.
 \end{apientry}
 
 %%%
 \begin{apientry}
 {mw-task-tag \emph{task-structure}}
 {Function}
-Return the associated tag object for this \emph{task-structure}, or NIL 
+Return the associated tag object for this \emph{task-structure}, or \bool{NIL}
 if not set.
 \end{apientry}
 
@@ -2005,22 +2023,36 @@ If the \emph{value} is less than zero, then return 0, otherwise return the
 \end{apientry}
 
 %%%
-\begin{apientry}
 \phlabel{mw-dump-exec}
-{mw-dump-exec \&key (\emph{exec-name} "a.out") (\emph{libs} :automatic)}
+\begin{apientry}
+{mw-dump-exec \&key (\emph{exec-name} "a.out")\\
+\indent \emph{ignore-libs} \emph{remap-libs}}
 {Function}
-Create an executable named \emph{exec-name} in the current
-working directory.  The variable \emph{libs} may be one of
-\emph{:none}, \emph{:automatic}, or \emph{:all}. If \emph{libs} is
-\texttt{:automatic} (the default and currently the only choice) then
-any libraries heuristically found to be ``unique'' to the Lisp image
-will also be copied to the current working directory. The libraries
-must be shipped with the executable to any target machine.
 
-This interface will likely change in the future.
+Produce an executable named \emph{exec-name}, which is \file{a.out}
+by default, and copy any shared libraries needed by the application
+into the current working directory.
 
-\Limitation The library modes of \texttt{:all} and \texttt{:none} are not
-	implemented.
+Any shared libraries loaded in the lisp image which are already
+an absolute path will be copied verbatim to the current working
+directory. Any unqualified libraries will be transformed by an
+algorithm approximating the search algorithm of \syscall{dlopen}
+into absolute paths and then copied to the current working directory.
+The dumped shared libraries must be shipped with the executable to
+the target machine.
+
+The parameter \emph{ignore-libs} is a list of strings where each string
+is an unqualified library name. These libraries will be ignored by
+\func{mw-dump-exec}. If this parameter is \bool{NIL}, the default,
+then no libraries are ignored.
+
+The parameter \emph{remap-libs} is an association list of strings
+where the first string is an unqualified library name and the second
+an absolute path to a library that will be copied to the current
+working directory in place of what is found in the lisp image. If this
+parameter is \bool{NIL}, the default, then no libraries are remapped.
+
+This interface may change in the future.
 
 \Limitation The dumped libraries must exist in the current working directory
 	when the executable is run.
