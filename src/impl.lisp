@@ -104,7 +104,7 @@
 (defun merge-ld.so.cache-line (bare-lib split-flags absolute-lib ht)
   ;; Ensure the bare-lib has a hash table entry in the master table.
   (when (null (gethash bare-lib ht))
-    (setf (gethash bare-lib ht) (make-hash-table :test #'equalp)))
+    (setf (gethash bare-lib ht) (make-hash-table :test #'equal)))
 
   ;; The type of the library is either libc6 or ELF, but not both. So
   ;; find out which one it is and set the type in the hash table value
@@ -130,11 +130,11 @@
 
 (defun parse-ld.so.cache (&key (program "/sbin/ldconfig") (args '("-p")))
   ;; Read all of the output of the program as lines.
-  (let ((ht (make-hash-table :test #'equalp))
+  (let ((ht (make-hash-table :test #'equal))
         (lines (stream->string-list
-                   (out-stream)
-                 (sb-ext:process-close
-                  (sb-ext:run-program program args :output out-stream)))))
+                (out-stream)
+                (sb-ext:process-close
+                 (sb-ext:run-program program args :output out-stream)))))
 
     ;; Pop the first line off, it is a count of libs and other junk
     (pop lines)
@@ -143,15 +143,15 @@
     ;; into a meaninful object upon which I can query.
     (dolist (line lines)
       (register-groups-bind
-          (bare-lib flags absolute-lib)
-          ("\\s*(.*)\\s+\\((.*)\\)\\s+=>\\s+(.*)\\s*" line)
+       (bare-lib flags absolute-lib)
+       ("\\s*(.*)\\s+\\((.*)\\)\\s+=>\\s+(.*)\\s*" line)
 
-        (let ((split-flags
-               (mapcar #'(lambda (str)
-                           (setf str (regex-replace "^\\s+" str ""))
-                           (regex-replace "\\s+$" str ""))
-                       (split "," flags))))
-          (merge-ld.so.cache-line bare-lib split-flags absolute-lib ht))))
+       (let ((split-flags
+              (mapcar #'(lambda (str)
+                          (setf str (regex-replace "^\\s+" str ""))
+                          (regex-replace "\\s+$" str ""))
+                      (split "," flags))))
+         (merge-ld.so.cache-line bare-lib split-flags absolute-lib ht))))
     ht))
 
 ;; Convert a bare-lib into an absolute path depending upon
@@ -173,7 +173,8 @@
             (:last
              (last all-absolute-libs)))))))
 
-(defun mw-dump-exec (&key (exec-name "./a.out"))
+
+(defun mw-dump-exec (&key (exec-name "./a.out") ignore-libs remap-libs)
   ;; XXX Does this actually do anything to the saved lisp image? Do
   ;; permutation testing to figure it out.
   (push (truename #P"./") cffi:*foreign-library-directories*)
@@ -198,39 +199,59 @@
         ;; up in the ld.so.cache to find which library we should dump
         ;; to the current working directory. This is assumed to be the
         ;; library that dlopen() would have chosen.
+        ;;
+        ;; Libraries can be ignored or remapped as desired and ignoring
+        ;; trumps remapping.
         (format t "Shared-library: ~A..." namestring)
-        (let ((base (concatenate 'string "./"
-                                 (file-namestring namestring))))
-          (if (char-equal (char namestring 0) #\/)
-              ;; shared library is already an absolute path
-              (progn
-                (format t "dumping...")
-                (copy-file namestring base))
-              ;; A bare shared library, look it up similar to dlopen()
-              ;; to find an absolute path to the library.
-              (progn
-                (format t "looking up...")
-                (let ((abs-lib (query-ld.so.cache namestring ld.so.cache)))
-                  (format t "found ~A..." abs-lib)
-                  (format t "dumping...")
-                  (copy-file abs-lib base))))
+        (let* ((base (file-namestring namestring))
+               (new-path (concatenate 'string "./" base))
+               (remap (assoc base remap-libs :test #'equal)))
 
-          (format t "fixating.~%")
-          ;; Reset the in memory shared library object to
-          ;; reference the local one right here. This means
-          ;; wherever you run the executable, the shared
-          ;; libraries better be in the same directory as the
-          ;; executable.
-          (setf namestring base)
-          ;; XXX Which one of these two is better?
-          ;;(setf pathname (pathname base))
-          (setf namestring
-                (sb-alien::native-namestring
-                 (translate-logical-pathname base) :as-file t))
-          (push base shlibs))))
+          (if (member base ignore-libs :test #'equal)
+              (format t "ignoring as requested.~%")
+              (progn
+                (cond
+                  ;; If the library has a remap, let's honor it.
+                  (remap
+                   (let* ((from (cadr remap))
+                          (to (concatenate 'string "./"
+                                           (file-namestring from))))
+                     (unless (equal from to)
+                       (format t "dumping remapped library ~A..." from)
+                       (copy-file from to))
+                     ;; Fix up the new-path for the later fixating phase.
+                     (setf new-path to)))
 
+                  ;; If the library is already an absolute path, copy it over
+                  ((char-equal (char namestring 0) #\/)
+                   (format t "dumping...")
+                   (copy-file namestring new-path))
+
+                  ;; Otherwise approximate the dlopen algorithm and
+                  ;; convert the bare (hopefully) library to an
+                  ;; absolute path.
+                  (t
+                   (format t "looking up...")
+                   (let ((abs-lib (query-ld.so.cache namestring ld.so.cache)))
+                     (format t "found ~A..." abs-lib)
+                     (format t "dumping...")
+                     (copy-file abs-lib new-path))))
+
+                (format t "fixating.~%")
+                ;; Reset the in memory shared library object to
+                ;; reference the local one right here. This means
+                ;; wherever you run the executable, the shared
+                ;; libraries better be in the same directory as the
+                ;; executable.
+                (setf namestring new-path)
+                (setf namestring
+                      (sb-alien::native-namestring
+                       (translate-logical-pathname new-path) :as-file t))
+                (push new-path shlibs))))))
+
+    ;; Done processing the libraries...
     (unless (null shlibs)
-      ;; Store the relative libraries for later understanding when we restart
+      ;; Store the relative libraries for later chicanery when we restart
       (setf *library-dependencies* shlibs)
       (terpri)
       (format t "########################################################~%")
