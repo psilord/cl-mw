@@ -130,7 +130,9 @@
 
 ;; The result of this function is a hash table which contains entries
 ;; about how to map bare library names to absolute paths as generated
-;; from ldconfig -p.
+;; from ldconfig -p. If a library maps to more than one library in the same
+;; architecture, they are preserved in the order of discovery from left to
+;; right in the list.
 ;;
 ;; In a perl-ish dialect, you get:
 ;; %hash = (
