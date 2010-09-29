@@ -137,14 +137,14 @@
 ;; In a perl-ish dialect, you get:
 ;; %hash = (
 ;;   "libm.so.6" => (
-;;      "type" => "libc6"
-;;      "X86-64" => ("/lib64/libm.so.6")
-;;      "X86" => ("/lib/tls/libm.so.6" "/lib/i686/libm.so.6" "/lib/libm.so.6")
+;;      :type => "libc6"
+;;      :X86-64 => ("/lib64/libm.so.6")
+;;      :X86 => ("/lib/tls/libm.so.6" "/lib/i686/libm.so.6" "/lib/libm.so.6")
 ;;   )
 ;;   "libGLU.so.1" => (
-;;      "type" => "libc6"
-;;      "X86-64" => ("/usr/X11R6/lib64/libGLU.so.1" "/usr/lib64/libGLU.so.1")
-;;      "X86" => ("/usr/X11R6/lib/libGLU.so.1" "/usr/lib/libGLU.so.1")
+;;      :type => "libc6"
+;;      :X86-64 => ("/usr/X11R6/lib64/libGLU.so.1" "/usr/lib64/libGLU.so.1")
+;;      :X86 => ("/usr/X11R6/lib/libGLU.so.1" "/usr/lib/libGLU.so.1")
 ;;   )
 ;; )
 (defun parse-ld.so.cache (&key (program "/sbin/ldconfig") (args '("-p")))
