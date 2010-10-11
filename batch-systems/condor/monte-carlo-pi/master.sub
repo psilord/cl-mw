@@ -1,0 +1,11 @@
+universe = scheduler
+executable = ./monte-carlo-pi
+arguments = --mw-master --mw-slave-task-group 1 --mw-slave-result-group 1 --mw-resource-file resource-file.rsc --mw-slave-executable monte-carlo-pi --mw-audit-file master.$(CLUSTER).$(PROCESS).audit --mw-member-id $(CLUSTER).$(PROCESS)
+
+output = master.out
+error = master.err
+log = master.log
+
+notification = NEVER
+
+queue 1

@@ -1,8 +1,8 @@
 universe = vanilla
-executable = ./ping
+executable = ./monte-carlo-pi
 arguments = --mw-slave --mw-resource-file resource-file.rsc
 
-# Requirements = Memory > 0
+Requirements = Memory > 0
 
 output = slaves.$(PROCESS).out
 error = slaves.$(PROCESS).err
@@ -10,7 +10,7 @@ log = slaves.log
 
 should_transfer_files = YES
 when_to_transfer_output = ON_EXIT_OR_EVICT
-transfer_input_files = libiolib-syscalls.so,resource-file.rsc
+transfer_input_files = librt.so,libiolib-syscalls.so,resource-file.rsc
 
 notification = NEVER
 
