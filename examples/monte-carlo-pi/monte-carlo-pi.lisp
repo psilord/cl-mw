@@ -28,25 +28,33 @@
 
 ;; Return a list of total and trials in the circle
 (define-mw-algorithm monte-carlo-pi (ntrials)
-	(labels ((square (x) (* x x))
-			(dist (cx cy px py)
-				;; no sqrt because radius is 1!
-				(+ (square (- px cx)) (square (- py cy)))))
+  (labels ((square (x) (* x x))
+           (dist (cx cy px py)
+             ;; no sqrt because radius is 1!
+             (+ (square (- px cx)) (square (- py cy)))))
 
-		(let ((result (list ntrials 0))
-	 		  (rstate (make-random-state t)))
-			(dotimes (x ntrials)
-				;; we only are using random numbers in quadrant I
-				(let ((rx (random 1.0 rstate))
-					  (ry (random 1.0 rstate)))
+    (let ((result (list ntrials 0))
+          (rstate (make-random-state t)))
+      (dotimes (x ntrials)
+        ;; we only are using random numbers in quadrant I
+        (let ((rx (random 1.0 rstate))
+              (ry (random 1.0 rstate)))
 
-					;; if the random point is in the circle, we record it.
-					(when (<= (dist 0 0 rx ry) 1.0)
-						(incf (cadr result)))))
-			result)))
+          ;; if the random point is in the circle, we record it.
+          (when (<= (dist 0 0 rx ry) 1.0)
+            (incf (cadr result)))))
+      result)))
 
 (defun approximate-pi (num-in-square num-in-circle)
-	(* 4.0 (/ num-in-circle num-in-square)))
+  (* 4.0 (/ num-in-circle num-in-square)))
+
+;; Pick --max-trials <integer> out of the argv, if present, otherwise use
+;; default specified.
+(defun argv-max-trial-sets (argv default)
+  (let ((max-trial-sets (cadr (member "--max-trial-sets" argv :test #'equal))))
+    (if (null max-trial-sets)
+        default
+        (read-from-string max-trial-sets))))
 
 (define-mw-master (argv)
     (unwind-protect
@@ -58,12 +66,12 @@
            (mw-allocate-slaves :amount 1000 :kind :unordered)
            (mw-set-target-number 10000)
 
-           (let ((max-trial-sets 100)
-		   		 (sets-submitted 0)
+           (let ((max-trial-sets (argv-max-trial-sets argv 100))
+                 (sets-submitted 0)
                  (results-received 0)
                  (trial-size (expt 10 7))
-				 (num-in-square 0)
-				 (num-in-circle 0)
+                 (num-in-square 0)
+                 (num-in-circle 0)
                  (start-time (get-universal-time)))
              ;; Here we produce the tasks on the fly until we produce the
              ;; number of tasks we needed
@@ -104,16 +112,16 @@
                (when-let ((results (mw-get-results)))
                  (dolist (result results)
                    (let ((payload (mw-result-packet result)))
-				   	(incf results-received)
-				   	(incf num-in-square (car payload))
-					(incf num-in-circle (cadr payload))))))
+                     (incf results-received)
+                     (incf num-in-square (car payload))
+                     (incf num-in-circle (cadr payload))))))
 
              ;; Done with the above loop...
-			 ;; Emit the answer
-			 (format t "Finished ~A trial sets of ~A size each.~%"
-			 	max-trial-sets trial-size)
-			 (format t "Pi[~A, ~A]: ~A~%" num-in-square num-in-circle 
-			         (approximate-pi num-in-square num-in-circle))
+             ;; Emit the answer
+             (format t "Finished ~A trial sets of ~A size each.~%"
+                     max-trial-sets trial-size)
+             (format t "Pi[~A, ~A]: ~A~%" num-in-square num-in-circle
+                     (approximate-pi num-in-square num-in-circle))
 
              ;; Emit some statistics.
              (let* ((diff (- (get-universal-time) start-time))
