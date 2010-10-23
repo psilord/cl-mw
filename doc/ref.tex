@@ -1173,23 +1173,25 @@ the slaves, or how many tasks were processed for a given time interval.
 
 \chapter{Interfacing with Existing Batch Systems}
 
-\clmw is designed to work with various pre-existing batch systems. Due
-to this design decision, \clmw has no provision for starting up slaves
-on a remote machine, moving files between machines, detecting and killing
-run away slaves, managing user identity, storing or transmitting
-credentials, or enforcing authorization policies for resource use.
-These, and many other features, are the general things which batch
-systems usually provide.
+\clmw is designed to work with existing batch systems.  \clmw has no
+provision for starting up slaves on remote machines, moving files
+between machines, detecting and killing run away slaves, managing
+user identity, storing or transmitting credentials, or enforcing
+authorization policies for resource use.  These, and many other
+features, are general features which batch systems usually provide.
+In general, batch systems provide very robust mechanisms for each of
+these features and are well suited to handle many edge cases which
+show up in practice. Usually a \clmw application will be sharing
+resources with other applications across a common cluster of machines.
 
-What \clmw does provide is a means for interaction with a batch system
+What \clmw does provide is a means for communicating to a batch system
 called the \rfile.  The master process, when configured to do so,
-will periodically write information into the \rfile, which details:
-liveness of the master process, if the computation is still in progress,
-how many slaves the master desires, and exactly how to start up those
-slaves. As the batch system provides the resources requested by the
-master, the master process adjusts the numbers accordingly. The
-\rfile constitutes a feedback loop between \clmw and the batch
-system actions which allow slaves to join the computation.
+periodically writes information into the \rfile, including liveness
+of the master process, if the computation is still in progress, how
+many slaves the master desires, and how to start up those slaves.
+The master process adjusts the resource requirement information in the
+file based upon the outstanding workload and the slaves successfully
+started by the batch system.
 
 The \rfile is written when the command line option\\
 \OptionV{mw-resource-file}{file-name} is used with the
@@ -1198,17 +1200,21 @@ every 300 seconds (5 minutes) with new information. This
 can be controlled by the command line option\\
 \OptionV{mw-resource-file-update-interval}{integral-seconds}.
 
-The \rfile is written in a convenient to read Lisp format and is
-intended to be read by another process specific to the batch scheduler
-whose responsibility it is to acquire resources from said batch
-scheduler. The batch scheduler is directly notified in the \rfile
-if the {\ma}'s computation is in progress or finished.
+The \rfile contains information in Lisp form and is intended to be read by
+another process specific to the batch scheduler whose responsibility it
+is to acquire resources from said batch scheduler. The batch scheduler
+is directly notified in the \rfile if the {\ma}'s computation is in
+progress or finished.
 
-\Note The slave process can also read the \rfile in order to determine
-the master host, port, and member-id to which it should connect and
-if the computation is still in progress or finished.  Depending upon
-the batch scheduler, having the slave read the \rfile directly can
-be a very advantageous.
+The slave process can also read the \rfile in order to determine the
+master host, port, and member-id to which it should connect and if
+the computation is still in progress or finished.  Depending upon the
+batch scheduler, having the slave read the \rfile directly can be a
+very helpful because the dynamic connection information needed by the
+slave is available in the file. There is no requirement to adjust
+meta-information for the slave (e.g., its command line arguments
+which may specify a new master ip:port combination) through the batch
+system itself.
 
 The internals of the \rfile are described on
 page~\pageref{resource-file}.
@@ -1216,58 +1222,66 @@ page~\pageref{resource-file}.
 \section{Condor}
 
 Condor is a versatile, robust, and free batch scheduling system
-available from \url{http://www.cs.wisc.edu/condor}. It has the ability
-to maintain high throughput for tens of thousands of jobs on tens of
-thousands of resources where the job constraints and the resource
-constraints are symmetrically honored and can manage supplementary
-file transfers on behalf of a job. Most importantly, Condor will try
-very hard to execute your job even in the face of machine failure or
-many other problems and is a very suitable batch system with which
-to host \clmw.
+available from \url{http://www.cs.wisc.edu/condor}. It can maintain
+high throughput for tens of thousands of jobs on tens of thousands
+of resources. Condor's built in mechanisms for file transfer,
+job execution policies, and robustness mechanisms make it a good
+distributed computing platform on which to run \clmw applications.
+We describe a simple application of Condor which provides a reliable
+execution platform for a \clmw application.
 
 \subsection{Interfacing \clmw with Condor}
 
-The basic properties of Condor which we will be utilizing with respect
-to \clmw are: how Condor performs file transfer of needed files for
-a job from the submit node to an execute node, and the conditions
-under which a job may leave the job queue.
+Condor can be told to transfer the job's input files to the remote
+execute node just before the job is about to start. Condor will do
+this each time a job tries to run when it has been sitting idle in
+the queue. We use this fact to copy over the \rfile written by the
+master over to the slave so the slave knows where to connect.
 
-Concerning the file transfer, Condor can be told to transfer the
-job's input files to the remote execute node just before the job is
-about to start.  Condor will do this \emph{each time} a job tries to
-run when it has been sitting idle in the queue. We use this fact to
-copy over the \rfile written by the master over to the slave so the
-slave knows where to connect.
+We use a Condor feature that can control when a terminated job is
+to removed from the queue. We forbid the slave job to be removed
+from the queue unless the slave gets told to shutdown by the master
+or otherwise exits with the return code of zero.  If the master dies
+without producing a completed answer, the slaves, having noticed that
+the master closed the connection without having been told to explicitly
+shut down, will exit with a non-zero status. The slave jobs will remain
+in the job queue due to the Condor enforced job policy. If the slave
+runs again and tries to connect using a stale resource file (due to
+the master not running for an extended period of time), the slave will
+again exit with a non-zero status value, again remaining in the queue.
 
-We also use the fact that Condor can control when a job leaves the
-queue by forbidding the slave to leave the queue unless it gets told
-to shutdown by the master, or otherwise exits with the return code
-of zero. In these cases, if the slave had exited due to a connection
-refused attempt, it will just go back to idle, and be restarted later.
+We also submit the master process itself as a job into the Condor
+system. The master will always run on the submit node as opposed to
+being shipped to an execute node. This allows the master access to
+the needed input files or other resources usually only found on the
+submission machine and owned by the submitter of the job. We do not
+perform the same type of job policy for the master as we did for the
+slaves. If the master exits with any return code, it will be removed
+from the job queue. However, in the event of machine reboot (or many
+other types of failures), Condor will, when it starts running again,
+know that the master and slave processes were present in the job
+queue. It will restart the master and again find more resources
+for the slave jobs. When the master restarts it will write a new
+\rfile. When a slave runs again, the new \rfile gets moved to it
+and it will connect with the currently running master. Finally,
+if the master has finished and written the final update into the
+\rfile stating the computation is finished, then any slaves that
+start up with that particular \rfile will immediately exit with a
+status zero. This allows the slaves to be removed from the queue. If
+a slave is told to shutdown properly by the master, and does so, then
+it will exit with an exit code of 0 and also be removed from the queue.
 
-Both of these together allow us a simple statement of reliability.
-Suppose the master dies without producing a completed answer.
-The slave, having noticed that the master closed the connection
-without having been told to explicitly shut down, will exit with
-a non-zero status--and stay in the queue due to the job policy
-we enforce with Condor.  If the slave was run again and tried to
-connect using a stale resource file (due to the master being down
-for an extended period of time), it will exit with a non-zero status
-value, again staying in the queue.  Now suppose the master restarted
-and wrote the new \rfile.  When the slave runs again, the new \rfile
-gets moved to it and it will connect with the currently running master.
-Finally, if the master has finished and written the final resource
-file stating the computation is finished, then any slaves that start
-up with that particular \rfile will immediately exit with a status
-zero allowing them to leave the queue. Of course, if a slave ever
-gets told to shutdown properly by the master, and does so, then it
-will exit with an exit code of 0 and also leave the queue.
+The combination of the slave job policy and the restart robustness
+of the master makes \clmw jobs reliable. In the event of a restart
+of the master process, the entire computation will restart. However,
+the entire computation will reliably restart and run until it finally
+completes.
 
-The particular interface described in this section is a very simple one
-and doesn't push the feedback loop of the \rfile deeply at all. It
-could be extended much more if there were an actual process outside
-of \clmw and managed by Condor which watches the \rfile and actively
-participates in the feedback loop with the instance of \clmw.
+The particular interface described in this section is a simple one
+and doesn't make full use of the information the \rfile. It could
+be extended with an actual process outside of \clmw and managed by
+Condor which watches the \rfile and actively submits and removes
+slaves from Condor based on the master's current resource needs.
 
 \subsubsection{A Simple Interface to Condor}
 
@@ -1374,8 +1388,8 @@ job is rerun. We also send over any shared libraries or other files
 the executable needs.
 
 In addition, we specify the \texttt{on\_exit\_remove} policy for the
-job, which states to only let the job leave the queue if it had not
-exited with a signal and the exit code was zero.
+job, which states to only let the job be removed from the queue if
+it had not exited with a signal and the exit code was zero.
 
 \subsection{Environmental Concerns}
 
@@ -2157,10 +2171,13 @@ memory at any give time to prevent memory exhaustion.
 \section{Monte-Carlo-Pi}
 This example implements the Monte Carlo algorithm to compute pi. Each
 task runs N trials and returns N and the number of trials in the
-circle. The master keeps a running sum of the total trials and the
-total number of trials in the circle. At the end of the maximum
+circle.  The master keeps a running sum of the total trials and
+the total number of trials in the circle. At the end of the maximum
 number of iterations, the approximation algorithm is performed with
-the computed ratio and the approximation to pi is produced.
+the computed ratio and the approximation to pi is produced.  You may
+specify \OptionV{--max-trial-sets}{integer} to the master process
+to state the total number of trial sets that must be performed. The
+number of trials performed by each trial-set is non-configurable.
 
 \section{Higher-Order}
 This example shows that \tas can be quite versatile. Here the
