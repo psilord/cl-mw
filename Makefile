@@ -1,19 +1,21 @@
+LISP = sbcl
+
 all: examples/hello-world/hello-world \
 	examples/ping/ping \
 	examples/monte-carlo-pi/monte-carlo-pi \
 	examples/higher-order/higher-order
 
 examples/hello-world/hello-world:
-	(cd examples/hello-world && make)
+	(cd examples/hello-world && make LISP=$(LISP))
 
 examples/ping/ping:
-	(cd examples/ping && make)
+	(cd examples/ping && make LISP=$(LISP))
 
 examples/monte-carlo-pi/monte-carlo-pi:
-	(cd examples/monte-carlo-pi && make)
+	(cd examples/monte-carlo-pi && make LISP=$(LISP))
 
 examples/higher-order/higher-order:
-	(cd examples/higher-order && make)
+	(cd examples/higher-order && make LISP=$(LISP))
 	
 clean:
 	(cd src && touch package.lisp)
