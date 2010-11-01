@@ -16,7 +16,7 @@
 
 ;; Efficiently copy a file from one location on disk to another
 ;; location on disk.
-(defun copy-file (iname oname &optional (buffer-size (* 1024 1024)))
+(defun copy-a-file (iname oname &optional (buffer-size (* 1024 1024)))
   (with-open-file (fin iname :direction :input
                        :element-type '(unsigned-byte 8))
     (with-open-file (fout oname :direction :output

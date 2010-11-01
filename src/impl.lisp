@@ -237,14 +237,14 @@
                                            (file-namestring from))))
                      (unless (equal from to)
                        (format t "dumping remapped library ~A..." from)
-                       (copy-file from to))
+                       (copy-a-file from to))
                      ;; Fix up the new-path for the later fixating phase.
                      (setf new-path to)))
 
                   ;; If the library is already an absolute path, copy it over
                   ((char-equal (char namestring 0) #\/)
                    (format t "dumping...")
-                   (copy-file namestring new-path))
+                   (copy-a-file namestring new-path))
 
                   ;; Otherwise approximate the dlopen algorithm and
                   ;; convert the bare (hopefully) library to an
@@ -254,7 +254,7 @@
                    (let ((abs-lib (query-ld.so.cache namestring ld.so.cache)))
                      (format t "found ~A..." abs-lib)
                      (format t "dumping...")
-                     (copy-file abs-lib new-path))))
+                     (copy-a-file abs-lib new-path))))
 
                 (format t "fixating.~%")
                 ;; Reset the in memory shared library object to
