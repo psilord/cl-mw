@@ -23,20 +23,11 @@
 %\usepackage[T1]{fontenc}	% make underscores show up nice. Bad with pdflatex.
 \usepackage{html}			% For Latex2html
 
-% latex2html really messes up the listings package, I'm not sure what to do
-% about that yet...
-%\begin{htmlonly}
-%  \usepackage{moreverb}
-%  \providecommand{\lisp}[2][]{\begin{boxedverbatim}#2\end{boxedverbatim}}
-%  \providecommand{\barelisp}[2][]{\begin{boxedverbatim}#2\end{boxedverbatim}}
-%\end{htmlonly}
-
 \usepackage{hyperref}		% For PDF generation MUST BE LAST
 \usepackage[all]{hypcap}	% Except for this, if I'm using hyperref
 							% Useful to link against figures and captions at
 							% the top of the figure/caption instead of the
 							% bottom.
-
 \hypersetup{
 	linktocpage,
 	citecolor=black,
@@ -106,6 +97,7 @@
 
 \newcommand{\syscall}[1]{\mbox{\texttt{#1()}}\xspace}
 \newcommand{\file}[1]{\texttt{#1}\xspace}
+\newcommand{\exec}[1]{\texttt{#1}\xspace}
 \newcommand{\bool}[1]{\texttt{#1}\xspace}
 \newcommand{\bold}[1]{\textbf{#1}\xspace}
 \newcommand{\opt}[1]{\texttt{#1}\xspace}
@@ -135,6 +127,9 @@
 \newcommand{\apifunc}[2]{\noindent\xsmall\texttt{(#1)}\hspace*{\fill}\xnormalsize\texttt{#2}}
 \newenvironment{apientry}[2]
 	{\apifunc{#1}{#2}\begin{quotation}}
+	{\end{quotation}}
+\newenvironment{explainline}[1]
+	{\noindent\texttt{#1}\begin{quotation}}
 	{\end{quotation}}
 
 
@@ -279,8 +274,8 @@ The source code to \clmw, the example programs, and the
 documentation source and contents are under the Apache 2 license:
 
 \begin{center}
-\framebox[5.1in]{
-\begin{minipage}[t]{5.0in}
+\framebox[5.1in][l]{
+\begin{minipage}[t]{4.9in}
 Copyright 2010 Peter K. Keller (psilord@cs.wisc.edu)\\
 
 Licensed under the Apache License, Version 2.0 (the ``License"); you
@@ -832,24 +827,18 @@ depending upon the application: \func{mw-get-unrunnable-tasks},
     (unwind-protect
          (let ((num-tasks 10)
                (num-results 0))
-
            (dotimes (x num-tasks)
              (let ((str (format nil "Task ~A" x)))
                (mw-funcall-hello (str))))
-
            (while (/= num-results num-tasks)
-
              (mw-master-loop)
-
              (when-let ((results (mw-get-results)))
                (dolist (result results)
                  (let ((payload (mw-result-packet result)))
                    (incf num-results)
-
                    (format t "Got result from slave: ~S~%"
                            payload)))))
            0)
-
       (format t "Master algo cleanup form.~%")))
 \end{lisp}
 
@@ -1223,7 +1212,7 @@ page~\pageref{resource-file}.
 
 Condor is a versatile, robust, and free batch scheduling system
 available from \url{http://www.cs.wisc.edu/condor}. It can maintain
-high throughput for tens of thousands of jobs on tens of thousands
+high job throughput for tens of thousands of jobs on tens of thousands
 of resources. Condor's built in mechanisms for file transfer,
 job execution policies, and robustness mechanisms make it a good
 distributed computing platform on which to run \clmw applications.
@@ -1277,55 +1266,32 @@ of the master process, the entire computation will restart. However,
 the entire computation will reliably restart and run until it finally
 completes.
 
-The particular interface described in this section is a simple one
-and doesn't make full use of the information the \rfile. It could
-be extended with an actual process outside of \clmw and managed by
-Condor which watches the \rfile and actively submits and removes
+The particular interface described in this section is: simple, doesn't
+make full use of the information the \rfile, and wastes compute time
+on the execution nodes during the time the master process is down. It
+could be extended with an actual process outside of \clmw and managed
+by Condor which watches the \rfile and actively submits and removes
 slaves from Condor based on the master's current resource needs.
 
 \subsubsection{A Simple Interface to Condor}
 
-This example describes the Condor interface for the \texttt{ping}
+This example describes the Condor interface for the \exec{ping}
 example supplied with \clmw.
 
-I will present two Condor submit files, one for a single master
-process, and one for a static cluster of slave processes. The master
-will write a \rfile and the slaves--utilizing file transfer, will
-read it and know where to connect. The \rfile path must be unique
-to each \clmw computation submitted to the same scheduler daemon
-in Condor and must match between the master's submit file and the
-slave's submit file. No dynamic adjustment of resource acquisition is
+There are two Condor submit files, one for a single master process,
+and one for a static cluster of slave processes. The master will write
+a \rfile and the slaves, using file transfer, will read it and know
+where to connect.  No dynamic adjustment of resource acquisition is
 done in this example.
 
 \subsubsection{The Master Process}
 
-The following submit file details how the master process is to be run.
-It will be a scheduler universe job that restricts membership of
-the slaves to be the cluster and process number of the submitted
-job, and will communicate with the slaves by means of the \rfile
-\file{resource-file.rsc}. We assume the needed libraries associated
-with the \texttt{ping} program are present alongside the executable in
-the submit directory and we submit the job with \textit{condor\_submit}
-in that directory.
-
-An audit file is specified based upon the cluster and process id of
-the job.  It will be filled with information about who and how the
-slaves connect and what work is given to them. The \file{master.out}
-and \file{master.err} file will hold the real standard output and
-error output from the \ma.
-
-\Note We specify the slave executable name directly, even though
-the master would use argv[0] to determine the name of itself if we
-did not specify the slave executable. We do this because Condor
-renames the argv[0] spawned processes to a special name such as
-\texttt{condor\_exec.\textit{JOBID}} where \texttt{\textit{JOBID}} is
-an XXX.YYY number representing the Condor specific cluster and process
-id of the job.  However, since the executable will be invoked (by
-default) in the current working directory of the scheduler universe
-job, the master can still determine the true name of the specified
-executable and we don't have to specify the full path.
+The following submit file details how the master process is to be run. This
+file is given to Condor's \exec{condor\_submit} which submits the job into
+Condor's job queue on the local machine.
 
 \begin{verbatim}
+# Begin master.sub
 universe = scheduler
 executable = ./ping
 arguments = --mw-master \
@@ -1336,26 +1302,118 @@ arguments = --mw-master \
 --mw-audit-file master.$(CLUSTER).$(PROCESS).audit \
 --mw-member-id $(CLUSTER).$(PROCESS)
 
-output = master.out
-error = master.err
-log = master.log
+output = master.$(CLUSTER).$(PROCESS).out
+error = master.$(CLUSTER).$(PROCESS).err
+log = master.$(CLUSTER).$(PROCESS).log
 
 notification = NEVER
 
 queue 1
+# End master.sub
 \end{verbatim}
 
-When this job is submitted, it should start immediately and create the \rfile.
+Each line will be described as to its effect on the job submission.
+\\
+
+\begin{explainline}
+{universe = scheduler}
+The job is marked to be a scheduler universe job. It will start immediately
+and only on the machine where this job is submitted.
+\end{explainline}
+
+\begin{explainline}
+{executable = ./ping}
+The executable Condor will use when executing this job.  Condor and
+the \exec{ping} executable will assume the needed libraries, if
+any, associated with the \exec{ping} program are present in the
+same directory as the executable.
+\end{explainline}
+
+\begin{explainline}
+{arguments = --mw-master \textbackslash \\ \indent
+--mw-slave-task-group 100 \textbackslash \\ \indent
+--mw-slave-result-group 100 \textbackslash \\ \indent
+--mw-resource-file resource-file.rsc \textbackslash \\ \indent
+--mw-slave-executable ping \textbackslash \\ \indent
+--mw-audit-file master.\$(CLUSTER).\$(PROCESS).audit \textbackslash \\ \indent
+--mw-member-id \$(CLUSTER).\$(PROCESS)}
+This is the complete list of command line arguments supplied to the
+master process when it is executed by Condor.
+
+The meaning of the \texttt{--mw-*} arguments in numerical order are:
+\begin{enumerate}
+\item Must be first and specifies that this invocation of the \exec{ping}
+	binary is the master process.
+\item Number of tasks that the master will pack into one network
+	packet to a slave.
+\item Number of results that the slave will pack into one network
+	packet to the master.
+\item Specify the resource file.  The \rfile path must be unique to each
+	\clmw computation submitted to the same scheduler daemon
+	in Condor.  The path must match between the master's submit
+	file and the slave's submit file.
+\item We explicitly specify the slave executable name. Otherwise, the
+	master would try to determine the name of itself when it is
+	running in order to find its own executable to use as the
+	slave executable in the \rfile. The explicit specification of the slave
+	executable is necessary because Condor specifies a different
+	name for the executable when executing it.
+\item An audit file is specified based upon the cluster and process
+	id of the job.	It will be filled with information about who
+	and how the slaves connect and what work is given to them. We
+	use Condor's \$(CLUSTER) and \$(PROCESS) macros, which are
+	unique per job submitted, to assign a unique identifier to
+	this file.
+\item Using Condor's \$(CLUSTER) and \$(PROCESS) mechanism, we assign a
+	unique identifier to the master. This identifier will be written into
+	the \rfile so that the slaves can authenticate themselves to
+	the master.
+\end{enumerate}
+\end{explainline}
+
+\begin{explainline}
+{output = master.\$(CLUSTER).\$(PROCESS).out}
+Any standard output written by the \ma will be written here.
+\end{explainline}
+
+\begin{explainline}
+{output = master.\$(CLUSTER).\$(PROCESS).out}
+Any standard error output written by the \ma will be written here.
+\end{explainline}
+
+\begin{explainline}
+{log = master.\$(CLUSTER).\$(PROCESS).log}
+This file is written by Condor and is a sequential record of a job's lifetime
+in Condor. A sample of the events which can happen to a job are: submission,
+execution, termination, held, released, etc. This file is a very useful
+debugging and tracking tool to find out the state in which a job may be.
+\end{explainline}
+
+\begin{explainline}
+{notification = NEVER}
+No matter how this job completes, do not send an email to the
+account which submitted this job. Valid options are \bold{ALWAYS},
+\bold{COMPLETE} (the default if \texttt{notification} is not
+specified), \bold{ERROR}, and \bold{NEVER}.
+\end{explainline}
+
+\begin{explainline}
+{queue 1}
+This will submit one cluster of jobs into Condor with only one job in the
+cluster.
+\end{explainline}
+
+When this job is submitted, it should start immediately and create
+the \rfile \file{resource.rsc}. After this file is in existence,
+the slaves can be submitted.
 
 \subsubsection{The Slave Processes}
 
 The following submit file submits a static cluster of vanilla jobs
-which are the slaves which will continuously attempt to connect to
-the master using the \rfile \file{resource-file.rsc} until such
-time as they are told explicitly to shut down by the master, or they
-read a \rfile which dictates the computation is over.
+which are the slaves.
 
 \begin{verbatim}
+# Begin slaves.sub
 universe = vanilla
 executable = ./ping
 arguments = --mw-slave \
@@ -1363,6 +1421,7 @@ arguments = --mw-slave \
 
 output = slaves.$(PROCESS).out
 error = slaves.$(PROCESS).err
+# All slaves will share a log file.
 log = slaves.log
 
 should_transfer_files = YES
@@ -1374,39 +1433,96 @@ notification = NEVER
 on_exit_remove = (ExitBySignal == False) && (ExitCode == 0)
 
 queue 1000
+# End slaves.sub
 \end{verbatim}
 
-One thousand jobs will be submitted into this cluster, and no more
-or less will be allocated regardless of the \texttt{:slaves-needed}
-setting in the \rfile. This is because there is no true overseer
-for the \rfile which is managing the resource acquisition desired by
-the \ma. These slaves will stay in the queue until they are told to
-shutdown by the master or they see the computation has been finished
-in the \rfile.  Notice that the \rfile is transmitted as an input
-file and under Condor this means to transmit it anew every time the
-job is rerun. We also send over any shared libraries or other files
-the executable needs.
+We describe the interesting lines in this submit file.
+\\
 
-In addition, we specify the \texttt{on\_exit\_remove} policy for the
-job, which states to only let the job be removed from the queue if
-it had not exited with a signal and the exit code was zero.
+\begin{explainline}
+{universe = vanilla}
+This fixates a set of features for this job in the Condor system which
+state that the job can run on any suitable execute machine in the pool.
+\end{explainline}
 
-\subsection{Environmental Concerns}
+\begin{explainline}
+{arguments = --mw-slave \textbackslash \\ \indent
+--mw-resource-file resource-file.rsc}
+The meaning of the \texttt{--mw-*} arguments in numerical order are:
+\begin{enumerate}
+\item Must be first and specifies that this invocation of the \exec{ping}
+	binary is a slave process.
+\item Specifies a resource file the slave will use to contact the master 
+	process and identify itself.
+\end{enumerate}
+\end{explainline}
 
-Running binaries across a host of machines which often will differ in:
-OS revisions, physical capabilities, and network will invariably bring
-to the forefront edge cases in binary compatibility or scalability
-problems. Here we describe a few common scenarios and their usual
-solution.
+\begin{explainline}
+{should\_transfer\_files = YES}
+This states that Condor is responsible for moving any files the job
+needs or produces during its execution. If not specified it means
+there is a common file system between the submit machine and the
+execute machine that the job can access.
+\end{explainline}
+
+\begin{explainline}
+{when\_to\_transfer\_output = ON\_EXIT}
+This specifies that Condor only cares about the output a job produces when
+a job completes.
+\end{explainline}
+
+\begin{explainline}
+{transfer\_input\_files = libiolib-syscalls.so,resource-file.rsc}
+Any input files needed by the job are specified here. We specify
+the shared libraries the slave executable needs in addition to the
+resource file. Condor will transfer the most recent versions of these
+input files each time the job starts.
+\end{explainline}
+
+\begin{explainline}
+{on\_exit\_remove = (ExitBySignal == False) \&\& (ExitCode == 0)}
+This implements the job policy previously mentioned. Only allow the job be
+removed from the queue when it hasn't exited by a signal and the exit code
+of the job is zero. If the job exits for any other reason, it will remain 
+in the job queue and be eventually restarted.
+\end{explainline}
+
+\begin{explainline}
+{queue 1000}
+Submit one cluster with 1000 jobs in it into Condor.
+\end{explainline}
+
+In summary, one thousand jobs will be submitted into this cluster.
+The \keyword{slaves-needed} setting in the \rfile is ignored, as there
+is no overseer watching the \rfile and managing resource acquisition
+on behalf of the \ma.  The \rfile is transmitted as an input file
+and under Condor this means to transmit it anew every time the job is
+rerun. Condor also send over any shared libraries or other files the
+executable needs.  These slaves will stay in the queue until they
+either connect to a master and the master tells it to shut down,
+or because the master wrote \texttt{:computation-status :finished}
+into the \rfile and the slave reads the file.  In addition, we specify
+the \texttt{on\_exit\_remove} policy for the job; the slave will only
+be removed from the queue if the slave had not exited with a signal
+and the exit code was zero as requested by the master.  The output
+of the slaves will be the standard out of the \sa. Since no audit
+file is specified, the auditing information will go to the standard
+out of the process.
+
+\subsection{Environmental Requirements}
+
+Running binaries across a host of machines which differ in OS
+revisions, physical capabilities, and network will bring to the
+forefront scalability and binary compatibility problems. Here we
+describe a few common problems and their solutions.
 
 \subsubsection{Memory Requirements}
 
 Depending upon the memory capabilities of the resource slots in
 the pool (suppose they only have 384MB each), a slave may run once,
-consume 512MB (suppose the unchanged default heap size) which Condor
-records as the memory usage for the job, get preempted for some reason,
-and then never run again because no slot in the pool will accept a
-512MB job anymore.
+consume 512MB which Condor records as the memory usage for the job,
+be preempted for some reason, and then never run again because no
+slot in the pool will accept a 512MB job anymore.
 
 This is fixed by either adding \texttt{Requirements = Memory > 0}
 (or whatever fits your needs) to the slave's submit file or adjusting
@@ -1418,12 +1534,11 @@ testing purposes.
 
 \subsubsection{Network or Disk Bandwidth}
 
-Another environmental concern is the network or disk bandwidth of
-the submit machine as potentially thousands of slaves (potentially
-simultaneously) have their executables, shared libraries, and other
-files transferred off of the submit machine and onto the execute slots.
-In practice this often isn't a problem, but it is good to know what
-to do if it becomes one.
+Another environmental concern is the network or disk bandwidth of the
+submit machine as potentially thousands of slaves simultaneously have
+their executables, shared libraries, and other files transferred from
+the submit machine and onto the execute slots.  In practice this often
+isn't a problem, but it is good to know what to do if it becomes one.
 
 The \textit{condor\_schedd} config file entries
 \texttt{JOB\_START\_DELAY} and\\ \texttt{JOB\_START\_COUNT} can be used
@@ -1432,17 +1547,20 @@ when bursts of jobs begin running.
 
 \subsubsection{Dynamic Linking}
 
-Since a \clmw application is a dynamically linked binary, it
-will need to find and load its required libraries at run time.
-When the binary is moved from the submit host to the execute host,
-it may be possible that the execute host may not have a suitable
-dynamic library available, or more rarely, a suitable kernel syscall
-interface the job needs. In this event, the job (in our case, the
-slave) will (often) die with a SIGKILL and go back to idle (due to
-our \texttt{on\_exit\_remove} policy). It could be possible for a
-slave to continuously match to a machine upon which it cannot run and
-accumulate badput. Condor has various means to address this issue
-so please refer to the manual.
+Since a \clmw application is a dynamically linked binary, it will need
+to find and load its required libraries at run time.  When the binary
+is moved from the submit host to the execute host, the execute host
+may not have a required dynamic library available, or more rarely,
+a required kernel syscall interface the job needs. In this event, the
+job (in our case, the slave) will (often) die with a SIGKILL and go
+back to idle (due to our \texttt{on\_exit\_remove} policy). It could
+be possible for a slave to continuously match to a machine upon which
+it cannot run. In this situation the slave will accumulate runtime
+but make no forward progress. The preferred solution is to package
+your libraries with your job. In the rare cases where this will not
+be sufficient, you may have to restrict the set of machine upon which
+your job runs.  Please read section 2.5 in the Condor manual for how
+to specify this kind of a requirement for your job.
 
 \chapter{Technical Specification}
 
@@ -2209,7 +2327,7 @@ questions about Lisp.
 
 \clmw is not an official product from the Condor Project. It is written
 by me in my free time. If you would like to use a C++ version of the
-\mw paradigm then check out \texttt{Condor-MW} form Condor's website.
+\mw paradigm then check out \texttt{Condor-MW} from Condor's website.
 
 \backmatter
 
