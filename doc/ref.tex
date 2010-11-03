@@ -97,6 +97,7 @@
 
 \newcommand{\syscall}[1]{\mbox{\texttt{#1()}}\xspace}
 \newcommand{\file}[1]{\texttt{#1}\xspace}
+\newcommand{\cmd}[1]{\texttt{#1}\xspace}
 \newcommand{\exec}[1]{\texttt{#1}\xspace}
 \newcommand{\bool}[1]{\texttt{#1}\xspace}
 \newcommand{\bold}[1]{\textbf{#1}\xspace}
@@ -753,11 +754,35 @@ appendix~\ref{version-history} on page~\pageref{version-history}.
 
 \section{Official Release Tarballs}
 
-\Todo
+This web page contains all official releases of \clmw in addition to 
+a live git repository of the HEAD of \clmw.
 
-\section{Current Snapshots}
+\url{http://pages.cs.wisc.edu/~psilord/lisp-public/index.html}
 
-\Todo
+Manuals in PDF and HTML forms corresponding to each release exist next to
+the release tarball.
+
+\section{Installation Using a Tarball}
+
+\begin{enumerate}
+\item Unpack the tarball, e.g., \cmd{tar zxf cl-mw-0.1.tar.gz}.
+\item Configure SBCL to know about the \file{*.asd} files. This may 
+	entail making symlinks in your \file{\$HOME/.sbcl/systems} (or appropriate)
+	directory to the \file{*.asd} files in the \clmw directory.
+\item In the unpacked \clmw directory:
+	\begin{itemize}
+	\item \cmd{make} will make all of the examples. 
+	\item \cmd{make clean} will remove all generated files.
+	\item \cmd{make docs} will make the PDF and html manual output in 
+		\file{doc/}.
+	\item \cmd{make SBCL=/path/to/sbcl \textit{target}} will use a specific
+		sbcl installation instead of the one in your path. By using this 
+		mechanism, you can specify things like \cmd{clbuild lisp} if 
+		that is how you start \sbcl. If you specify SBCL for the toplevel 
+		Makefile, it will propagate to the Makefiles in the 
+		\file{examples/*} directory
+	\end{itemize}
+\end{enumerate}
 
 \chapter{Writing Applications}
 
@@ -2310,7 +2335,10 @@ up in the \ta.
 
 \chapter{\label{version-history}Version History}
 
-\begin{verhist}{0.1}{MM/DD/YYYY}
+% Format to use is:
+% \begin{verhist}{X.Y.Z}{MM/DD/YYYY}
+
+\begin{verhist}{0.1}{11/03/2010}
 \info Initial release of \clmw.
 \end{verhist}
 
