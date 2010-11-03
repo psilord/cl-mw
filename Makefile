@@ -24,6 +24,9 @@ all: examples/hello-world/hello-world \
 	examples/monte-carlo-pi/monte-carlo-pi \
 	examples/higher-order/higher-order
 
+docs:
+	(cd doc && make clean && make all)
+
 examples/hello-world/hello-world:
 	(cd examples/hello-world && make LISP=$(LISP))
 
