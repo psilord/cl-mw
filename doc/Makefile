@@ -12,10 +12,8 @@ ref: ref.dvi
 ref.html:
 	$(LATEX2HTML) ref
 
-ref.pdf:
-	$(TEX2PDF) ref.tex
-	$(TEX2PDF) ref.tex -interaction=batchmode > /dev/null 2>&1
-	$(TEX2PDF) ref.tex -interaction=batchmode > /dev/null 2>&1
+ref.pdf: ref.dvi
+	dvipdf ref.dvi ref.pdf
 
 ref.dvi: ref.tex
 	$(TEX2DVI) ref.tex
