@@ -14,6 +14,10 @@
 
 (in-package #:cl-mw)
 
+;; Returns the current version of the library as a string.
+(defun mw-version-string ()
+  "0.2-prerelease")
+
 ;; A simple but efficient queue implementation from "ANSI Common Lisp"
 ;; by Paul Graham.
 (defun make-queue ()
@@ -88,10 +92,6 @@
          ,@body)
        (setf *slave-function*
              (function ,(intern (symbol-name slave-func)))))))
-
-;; Returns the current version of the library as a string.
-(defun mw-version-string ()
-  "0.1")
 
 ;; All exit paths from a slave algorithm should exit with this which
 ;; becomes the answer back to the master.
