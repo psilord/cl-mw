@@ -2,7 +2,7 @@ first: ref.dvi
 
 TEX2DVI=pdflatex -output-format dvi
 TEX2PDF=pdflatex -output-format pdf
-LATEX2HTML = latex2html -antialias -split 3
+LATEX2HTML = latex2html -local_icons -antialias -split 3
 HEVEA = hevea
 
 all: ref.dvi ref.pdf ref.html
