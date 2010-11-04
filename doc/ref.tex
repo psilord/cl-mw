@@ -234,8 +234,7 @@ numberbychapter=true,
 % A version history entry in the appendix.
 %%%%%%%%%
 \newenvironment{verhist}[2]
-	{\textbf{Version #1}\\\indent\xsmall(Released #2)\xnormalsize
-	 \begin{itemize}}
+	{\noindent\textbf{Version #1}\\\indent\xsmall(Released #2)\xnormalsize\begin{itemize}}
 	{\end{itemize}}
 \newcommand{\removed}{\item \bold{Removed:}\xspace}
 \newcommand{\obsolete}{\item \bold{Obsolete:}\xspace}
@@ -2337,6 +2336,12 @@ up in the \ta.
 
 % Format to use is:
 % \begin{verhist}{X.Y.Z}{MM/DD/YYYY}
+% or
+% \begin{verhist}{0.2}{from HEAD on \today.} if in development.
+
+\begin{verhist}{0.2}{from HEAD on \today.}
+\bugfix Fixed broken navigation icon links in html manual.
+\end{verhist}
 
 \begin{verhist}{0.1}{11/02/2010}
 \info Initial release of \clmw.
