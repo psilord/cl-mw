@@ -35,6 +35,7 @@
 ;; When mw is initialized and it knows this is the master, run this entry
 ;; point, which will manage the processing loop.
 (define-mw-master (argv)
+    (declare (ignorable argv))
     (unwind-protect
          (progn
            ;; This is the limit of unordered slaves the master will
@@ -117,6 +118,7 @@
 ;; When mw is initialized and it knows this is a slave, simply start up
 ;; the slave, connect to the server, and start processing tasks.
 (define-mw-slave (argv)
+    (declare (ignorable argv))
     (unwind-protect
          (mw-slave-loop-simple)
 

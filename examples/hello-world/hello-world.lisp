@@ -33,6 +33,7 @@
 ;; When mw is initialized and it knows this is the master, run this entry
 ;; point, which will manage the processing loop.
 (define-mw-master (argv)
+    (declare (ignorable argv))
     (unwind-protect
          (let ((num-tasks 10)
                (num-results 0))
@@ -67,6 +68,7 @@
 ;; When mw is initialized and it knows this is a slave, simply start up
 ;; the slave, connect to the server, and start processing tasks.
 (define-mw-slave (argv)
+    (declare (ignorable argv))
     (unwind-protect
 
          ;; This returns 0 as an exit value.
