@@ -18,7 +18,7 @@
         #:alexandria
         #:iolib
         #:cffi
-	#:cl-ppcre)
+        #:cl-ppcre)
   (:export
    #:define-mw-master
    #:define-mw-slave
@@ -90,7 +90,7 @@
 ;; 1. with-checkpointable-bindings & test the hell out of it.
 ;; 2. Implement allocate-speculation-tasks
 ;; 3. Implement client authentication/authorization using X509/SSL
-;; 4. Implement &rest, &key, &optional, etc with mw-funcall-*
+;; 4. DONE Implement &rest, &key, &optional, with mw-funcall-*
 ;; 5. Implement a collector to match slaves with masters.
 ;; 6. Implement that if a master dies, the slave tries to rematch with new one
 ;; 7. Implement a controller client to give tasks to a master and take results

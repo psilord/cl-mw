@@ -16,7 +16,7 @@
 
 ;; Returns the current version of the library as a string.
 (defun mw-version-string ()
-  "0.2-prerelease")
+  "0.2")
 
 ;; A simple but efficient queue implementation from "ANSI Common Lisp"
 ;; by Paul Graham.
@@ -101,27 +101,37 @@
 ;; A function used to get all of the symbol names from a quoted
 ;; argument list to a function so I can do manipulation with them.
 ;; It is used in the define-mw-algorithm macro.
-(defun extract-arg-names (arg-list)
+(defun extract-arg-names (arg-list &optional (mode :required))
   (cond
     ((null arg-list)
      nil)
 
-    ;; skip the usual parameter keywords
-    ;; XXX This feature is broken right now.
-    ((or (eq '&key (car arg-list))
-         (eq '&rest (car arg-list))
-         (eq '&optional (car arg-list)))
-     (extract-arg-names (cdr arg-list)))
+    ((eq '&optional (car arg-list))
+     (extract-arg-names (cdr arg-list) :optional))
 
-    ;; If I'm processing a list parameter, the first entry is the symbol
-    ;; name in which I am interested.
-    ;; XXX This feature is broken right now.
-    ((listp (car arg-list))
-     (cons (caar arg-list) (extract-arg-names (cdr arg-list))))
+    ((eq '&key (car arg-list))
+     (extract-arg-names (cdr arg-list) :keyword))
 
-    ;; Otherwise, just copy the argument
+    ((eq '&rest (car arg-list))
+     (extract-arg-names (cdr arg-list) :rest))
+
     (t
-     (cons (car arg-list) (extract-arg-names (cdr arg-list))))))
+     ;; Process a variable name or init-form being careful about the mode
+     ;; we are in.
+     (let ((key (if (consp (car arg-list)) #'caar #'car)))
+       (ecase mode
+         ((:required :optional :rest)
+          (cons (funcall key arg-list) (extract-arg-names (cdr arg-list) mode)))
+         (:keyword
+          ;; Keywords can have two var-init forms, one where the
+          ;; keyword is identical to the variable name, and the other
+          ;; where the keyword is specified and not necessarily
+          ;; identical to the variable name.
+          (let* ((thing (funcall key arg-list))
+                 (name (if (symbolp thing) thing (car thing)))
+                 (arg (if (symbolp thing) thing (cadr thing))))
+            (cons (intern (symbol-name name) :keyword)
+                  (cons arg (extract-arg-names (cdr arg-list) mode))))))))))
 
 ;; A small utility to help me make new symbols for created
 ;; functions...  Concatenate strings and symbols in order in rest into
@@ -220,7 +230,6 @@
        ;; It'll be named MW-FUNCALL-name all uppercase
        ;; ;;;;;;;;;;;;;
        (defmacro ,(make-interned-sym "mw-funcall-" name)
-
            ;; Argument list for macro. Notice that it will use
            ;; destructuring to create the exact same signature as the
            ;; generated function for the first list of parameters. The
@@ -229,16 +238,14 @@
            ;; (mw-funcall-xxx (...)) can match the function and will
            ;; be serialized properly. Anything after the (...) are
            ;; keyword arguments for the mw-funcall-* macro.
-           ;;
-           ;; XXX For now, don't use keyword or other types of arguments in the
-           ;; mw-funcall-* function. I need to figure those out better.
            (,args &key sid tag do-it-anyway (retry t))
 
          ;; Add the new task to the taskjar. Under certain conditions, like I'm
          ;; adding a do-it-anyway nil task for a slave which doesn't exist,
          ;; the task might end up immediately in the unrunnable set.
          (let ((s (gensym))
-               (dia (gensym)))
+               (dia (gensym))
+               (has-rest-parameter (member '&rest ',args)))
            `(let ((,s ,sid)
                   (,dia ,do-it-anyway))
               (add-task (make-mw-task
@@ -254,7 +261,45 @@
                                            (if ,s nil t))
                          :retry ,retry
                          :queue-time (get-universal-time)
-                         :packet (serialize (list ,,@(extract-arg-names args)))))))))))
+                         :packet
+                         (serialize
+                          ;; Ok, this is a bit of some hairy macrology
+                          ;; here.  We are determining of the
+                          ;; lambda-list to the task algorithm
+                          ;; contains a &rest or not. If so, then we
+                          ;; have a &rest parameter for this task
+                          ;; algorithm (discovered at macro expansion
+                          ;; time), then we splice the extracted and
+                          ;; evaluated &rest parameter into the
+                          ;; serialized list at the end. The expanded
+                          ;; list macro for a lambda-list that looks
+                          ;; like this: (a b c &rest d) will look like
+                          ;; this: `(list ,a ,b ,c ,@d). This is so
+                          ;; when the list is deserialized in the
+                          ;; client and the task algorithm applied to
+                          ;; it, the correct arguments end up in the
+                          ;; rest parameter in the real task algorithm
+                          ;; function like how one expects.
+                          ;;
+                          ;; If no &rest is present, then we just
+                          ;; collect the extracted and evaluated
+                          ;; parameters into a list and serialize it.
+                          ;; For a lambda-list like: (a b c), it will
+                          ;; expand into: `(list ,a ,b ,c)
+                          ;;
+                          ;; XXX There is a current limitation of not
+                          ;; correctly determining if supplied-p
+                          ;; variables are present and taking them
+                          ;; into account. When I perform the argument
+                          ;; extraction, ALL keywords and such will be
+                          ;; specified regardless of what was passed
+                          ;; into this macro, so supplied-p tests on
+                          ;; the client side will always pass.
+                          ,(if has-rest-parameter
+                               `(list
+                                 ,,@(extract-arg-names (butlast args))
+                                 ,@,(car (last args)))
+                               `(list ,,@(extract-arg-names args))))))))))))
 
 (defun mw-set-target-number (level)
   (with-slots (target-numbers) *taskjar*

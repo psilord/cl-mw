@@ -22,7 +22,8 @@ RDIR = $(RDIR_PREFIX)$(VERSION)
 all: examples/hello-world/hello-world \
 	examples/ping/ping \
 	examples/monte-carlo-pi/monte-carlo-pi \
-	examples/higher-order/higher-order
+	examples/higher-order/higher-order \
+	examples/argument-processing/argument-processing
 
 docs:
 	(cd doc && make clean && make all)
@@ -38,6 +39,9 @@ examples/monte-carlo-pi/monte-carlo-pi:
 
 examples/higher-order/higher-order:
 	(cd examples/higher-order && make LISP=$(LISP))
+
+examples/argument-processing/argument-processing:
+	(cd examples/argument-processing && make LISP=$(LISP))
 
 # The documentation pages are generated from the actual release tag.
 release: ensure-release-tag-ok
@@ -70,3 +74,4 @@ clean:
 	(cd examples/ping && make clean && touch package.lisp)
 	(cd examples/monte-carlo-pi && make clean && touch package.lisp)
 	(cd examples/higher-order && make clean && touch package.lisp)
+	(cd examples/argument-processing && make clean && touch package.lisp)

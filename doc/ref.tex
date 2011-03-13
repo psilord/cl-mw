@@ -260,7 +260,7 @@ numberbychapter=true,
 \title{\textbf{CL-MW}\\
 \normalsize A Master-Slave Library for Distributed\\
 Programming in Common Lisp\\
-Version 0.1}
+Version 0.2}
 \author{Peter Keller\\psilord@cs.wisc.edu}
 \date{\today}
 \maketitle
@@ -362,12 +362,13 @@ used by the \tas and then removing it when the slave shuts down.
 A \ta is a piece of code written by the application author
 which converts tasks into results in the slave.  The macro
 \macro{define-mw-algorithm} defines a \ta. The parameter list of
-this macro is similar to \macro{defun}. You specify a name and an
-argument list. Unlike \macro{defun}, \key, \rest, and \optional\
-arguments are currently not supported. The supplied code cannot return
-a set of values with \func{values}. There must only be one value that
-is returned.  These limitations will be removed in future versions
-of \clmw.
+this macro is similar to \macro{defun}. You specify a name and a
+lambda list. The lambda list keywords: \key, \rest, and \optional are
+supported, but only in a basic manner. Only one lambda list keyword
+may be used at a time in a lambda list. Supplied-p-parameters are
+not supported.  The \ta body cannot return a set of values with
+\func{values}. There must only be one value that is returned.
+These limitations will be removed in future versions of \clmw.
 
 Here is an example definition of a \ta which echos back its argument
 unchanged. \Note The arguments accepted and the result returned
@@ -1689,11 +1690,15 @@ package built on top of \clmw. The exported symbols in the \mwpackage are:
 {define-mw-algorithm \emph{name} (\emph{parameters*}) \&body \emph{body}}
 {Macro}
 Defines a \ta with name \emph{name}. The arguments passed to this
-call are exactly those which were passed into the \genmacroname{mw-funcall-}
+call are those which were passed into the \genmacroname{mw-funcall-}
 form for the \ta.
 
-\Limitation The \emph{parameters} list is restricted to being \emph{required}
-parameters only. 
+\Limitation The \emph{parameters} list is restricted to having zero
+or more \emph{required} parameters and one additional and optional
+lambda list keyword. There may be any number of parameters and their
+init-forms associated with the lambda list keyword.
+
+\Limitation Supplied-p-parameters are not supported in the lambda list.
 
 \Limitation A \ta may not return multiple values or a
 function or closure. The latter restriction is due to the inability
@@ -2332,6 +2337,11 @@ fundamental sketch of producing higher order \tas, more work would
 be needed to handle signaled errors or other problems that could show
 up in the \ta.
 
+\section{Argument-Processing}
+This example shows how to define \tas that use the optional and
+available lambda list keywords. The returned result from each task
+shows the values of the parameters passed to the \ta.
+
 \chapter{\label{version-history}Version History}
 
 % Format to use is:
@@ -2339,8 +2349,12 @@ up in the \ta.
 % or
 % \begin{verhist}{0.2}{from HEAD on \today.} if in development.
 
-\begin{verhist}{0.2}{from HEAD on \today.}
-\bugfix Fixed some warnings in the examples.
+\begin{verhist}{0.2}{04/12/2011}
+\newfeature Added basic support for the lambda list keywords of \rest,
+	\optional, and \key for use by the \tas.
+\newfeature Added a new example, \textit{Argument-Processing}, demonstrating 
+	the use of the \rest, \optional, and \key lambda list keywords in a \ta.
+\bugfix Fixed various warnings in the examples.
 \bugfix Fixed broken navigation icon links in html manual.
 \end{verhist}
 
