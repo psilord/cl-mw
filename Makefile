@@ -23,10 +23,14 @@ all: examples/hello-world/hello-world \
 	examples/ping/ping \
 	examples/monte-carlo-pi/monte-carlo-pi \
 	examples/higher-order/higher-order \
-	examples/argument-processing/argument-processing
+	examples/argument-processing/argument-processing \
+	examples/with-task-policy/with-task-policy
 
 docs:
 	(cd doc && make clean && make all)
+
+examples/with-task-policy/with-task-policy:
+	(cd examples/with-task-policy && make LISP=$(LISP))
 
 examples/hello-world/hello-world:
 	(cd examples/hello-world && make LISP=$(LISP))
@@ -75,3 +79,4 @@ clean:
 	(cd examples/monte-carlo-pi && make clean && touch package.lisp)
 	(cd examples/higher-order && make clean && touch package.lisp)
 	(cd examples/argument-processing && make clean && touch package.lisp)
+	(cd examples/with-task-policy && make clean && touch package.lisp)

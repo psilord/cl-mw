@@ -299,7 +299,43 @@
                                `(list
                                  ,,@(extract-arg-names (butlast args))
                                  ,@,(car (last args)))
-                               `(list ,,@(extract-arg-names args))))))))))))
+                               `(list ,,@(extract-arg-names args)))))))))
+
+       ;; ;;;;;;;;;;;;;
+       ;; Generate a macro where you can name a regular function that
+       ;; will add tasks for this name in the specified task policy
+       ;; environment.
+       ;; ;;;;;;;;;;;;;
+       (defmacro ,(make-interned-sym "mw-with-task-policy-for-" name)
+	   ((funcsym &key sid tag do-it-anyway (retry t)) &body body)
+	 (let ((s (gensym))
+	       (dia (gensym))
+	       (has-rest-parameter (member '&rest ',args)))
+	   `(let ((,s ,sid)
+		  (,dia ,do-it-anyway))
+	      ;; Let the user name a function which will be lexically bound
+	      ;; in the body they supply that adds tasks in accordance to
+	      ;; the default policy they specified.
+	      (labels ((,funcsym ,',args
+			 (add-task
+			  (make-mw-task
+			   :pkge (package-name (symbol-package ',',name))
+			   :algorithm ,',(string-upcase (symbol-name name))
+			   :sid ,s
+			   :tag ,tag
+			   :do-it-anyway (if ,dia
+					     ,dia
+					     (if ,s nil t))
+			   :retry ,retry
+			   :queue-time (get-universal-time)
+			   :packet
+			   (serialize
+			    ,(if has-rest-parameter
+				 `(list
+				   ,@(extract-arg-names (butlast ',args))
+				   ,(car (last ',args)))
+				 `(list ,@(extract-arg-names ',args))))))))
+		,@body)))))))
 
 (defun mw-set-target-number (level)
   (with-slots (target-numbers) *taskjar*
