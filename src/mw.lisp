@@ -16,7 +16,7 @@
 
 ;; Returns the current version of the library as a string.
 (defun mw-version-string ()
-  "0.2")
+  "0.4")
 
 ;; A simple but efficient queue implementation from "ANSI Common Lisp"
 ;; by Paul Graham.
