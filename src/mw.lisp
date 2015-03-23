@@ -307,35 +307,35 @@
        ;; environment.
        ;; ;;;;;;;;;;;;;
        (defmacro ,(make-interned-sym "mw-with-task-policy-for-" name)
-	   ((funcsym &key sid tag do-it-anyway (retry t)) &body body)
-	 (let ((s (gensym))
-	       (dia (gensym))
-	       (has-rest-parameter (member '&rest ',args)))
-	   `(let ((,s ,sid)
-		  (,dia ,do-it-anyway))
-	      ;; Let the user name a function which will be lexically bound
-	      ;; in the body they supply that adds tasks in accordance to
-	      ;; the default policy they specified.
-	      (labels ((,funcsym ,',args
-			 (add-task
-			  (make-mw-task
-			   :pkge (package-name (symbol-package ',',name))
-			   :algorithm ,',(string-upcase (symbol-name name))
-			   :sid ,s
-			   :tag ,tag
-			   :do-it-anyway (if ,dia
-					     ,dia
-					     (if ,s nil t))
-			   :retry ,retry
-			   :queue-time (get-universal-time)
-			   :packet
-			   (serialize
-			    ,(if has-rest-parameter
-				 `(list
-				   ,@(extract-arg-names (butlast ',args))
-				   ,(car (last ',args)))
-				 `(list ,@(extract-arg-names ',args))))))))
-		,@body)))))))
+           ((funcsym &key sid tag do-it-anyway (retry t)) &body body)
+         (let ((s (gensym))
+               (dia (gensym))
+               (has-rest-parameter (member '&rest ',args)))
+           `(let ((,s ,sid)
+                  (,dia ,do-it-anyway))
+              ;; Let the user name a function which will be lexically bound
+              ;; in the body they supply that adds tasks in accordance to
+              ;; the default policy they specified.
+              (labels ((,funcsym ,',args
+                         (add-task
+                          (make-mw-task
+                           :pkge (package-name (symbol-package ',',name))
+                           :algorithm ,',(string-upcase (symbol-name name))
+                           :sid ,s
+                           :tag ,tag
+                           :do-it-anyway (if ,dia
+                                             ,dia
+                                             (if ,s nil t))
+                           :retry ,retry
+                           :queue-time (get-universal-time)
+                           :packet
+                           (serialize
+                            ,(if has-rest-parameter
+                                 `(list
+                                   ,@(extract-arg-names (butlast ',args))
+                                   ,(car (last ',args)))
+                                 `(list ,@(extract-arg-names ',args))))))))
+                ,@body)))))))
 
 (defun mw-set-target-number (level)
   (with-slots (target-numbers) *taskjar*
@@ -1536,7 +1536,7 @@
                 ;; as a tmp file, then rename it to be the right
                 ;; one.
                 (let ((fname (pathname
-                              (concatenate 'string resource-file ".tmp"))))
+                              (concatenate 'string resource-file "-tmp"))))
                   (with-open-file (fout fname
                                         :direction :output
                                         :if-exists :supersede
@@ -1571,7 +1571,13 @@
                                       "--mw-master-port"
                                       ,(format nil "~A" master-port)))))
 
-                  (rename-file fname resource-file)
+                  ;; TODO: File renaming with something like foo.tmp -> foo
+                  ;; is just broken. Find a real way to do this. For now,
+                  ;; don't use a dot in your resfile name, and notice that
+                  ;; the tmp file has -tmp suffixed on it.
+                  (let ((new-name (rename-file fname resource-file)))
+                    (alog t "RESFILE" "Generated resource file: ~S~%"
+                          (namestring new-name)))
 
                   ;; Set the next update time.
                   (setf update-time (+ now resource-file-update-interval))))))))))
@@ -1592,7 +1598,7 @@
     (when (member "--mw-version-string" argv :test #'string-equal)
       ;; This will exit.
       (format t "CL-MW: Version ~A~%" (mw-version-string))
-      (sb-ext:quit :unix-status 1))
+      (uiop:quit 1))
 
     ;; This function does the work of setting the config options and
     ;; building the new argv list which only contains non-mw stuff in
@@ -1762,12 +1768,15 @@
 (defun slave-load-resource-file (file)
   (with-slots (master-host master-port member-id computation-finished)
       *conftable*
+    (with-debug-stream (*debug-stream* nil)
+      (alog t "RESFILE" "Loading resource file: ~S~%"
+            (namestring (truename file))))
     (with-open-file (fin file :direction :input :if-does-not-exist nil)
       (handler-case
           (progn
             (when (null fin)
               (with-debug-stream (*debug-stream* nil)
-                (alog t "CL-MW"
+                (alog t "RESFILE"
                       "WARNING: Resource file ~A not found. Continuing anyway hoping other command line arguments are present.~%"
                       file))
               (error 'end-of-file))
@@ -1878,8 +1887,4 @@
 ")
 
   (when exit
-    (sb-ext:quit :unix-status 1)))
-
-
-
-
+    (uiop:quit 1)))

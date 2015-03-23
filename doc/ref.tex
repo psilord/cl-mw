@@ -246,6 +246,7 @@ numberbychapter=true,
 \newcommand{\newfeature}{\item \bold{NewFeature:}\xspace}
 \newcommand{\changed}{\item \bold{Changed:}\xspace}
 \newcommand{\bugfix}{\item \bold{BugFix:}\xspace}
+\newcommand{\knownbug}{\item \bold{KnownBug:}\xspace}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Misc.
@@ -2399,6 +2400,15 @@ shows the values of the parameters passed to the \ta.
 % \begin{verhist}{X.Y.Z}{MM/DD/YYYY}
 % or
 % \begin{verhist}{0.2}{from HEAD on \today.} if in development.
+
+\begin{verhist}{0.4}{03/24/2015}
+\knownbug Until further notice, do not specify resource file names with a
+	dot in them.
+\bugfix Changed from the depreciated \texttt{SB-EXT:QUIT} SBCL function to
+	the ASDF \texttt{UIOP:QUIT} instead.
+\bugfix Hardened discovery mechanism for fixating shared libraries loaded
+	into the lisp image when producing MW executables.
+\end{verhist}
 
 \begin{verhist}{0.3}{03/27/2012}
 \newfeature The macro \macro{define-mw-algorithm} now generates an 

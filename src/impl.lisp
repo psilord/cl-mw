@@ -45,16 +45,16 @@
     (finish-output)
     ;; Here we do a "belt and suspenders" check to ensure we return something
     ;; that is always valid.
-    (sb-ext:quit :unix-status
-                 (if (and (integerp ret)
-                          (>= ret 0)
-                          (<= ret 255))
-                     ret
-                     (progn
-                       (format *error-output*
-                               "MW-INIT: Wrong exit code type/value [%S] in _INIT, assuming 255.~%"
-                               ret)
-                       255)))))
+    (uiop:quit
+     (if (and (integerp ret)
+              (>= ret 0)
+              (<= ret 255))
+         ret
+         (progn
+           (format *error-output*
+                   "MW-INIT: Wrong exit code type/value [~S] in _INIT, assuming 255.~%"
+                   ret)
+           255)))))
 
 ;; Perform the body, which is assumed to open the stream strm in question
 ;; and write to it.
@@ -72,125 +72,81 @@
                        line))
          (nreverse ,h)))))
 
-;; Convert the machine type to a keyword.
-(defun get-machine-type ()
-  (let ((mt (machine-type)))
+(defun canonicalize-flags (flags)
+  (destructuring-bind (lib-type &rest others) flags
     (cond
-      ((equalp "X86" mt)
-       :x86)
-      ((equalp "X86-64" mt)
-       :x86-64)
+      ((member lib-type '("libc4" "libc5" "libc6") :test #'string-equal)
+       (cond
+         ;; Handle: ("libc6")
+         ((null (car others))
+          (list lib-type "x86"))
+         ;; Handle: ("libc6" "x86-64"/"x32" ...)
+         ((member (car others) '("x32" "x86-64") :test #'string-equal)
+          (list* lib-type (copy-seq others)))
+         ;; Handle: ("libc6" "OS ABI: Linux x.y.z" ...)
+         (t
+          (list* lib-type "x86" (copy-seq others)))))
+      ((string-equal lib-type "ELF")
+       (list "ELF" "" ""))
       (t
-       (error "Unknown machine type ~A, please port!~%" mt)))))
+       (error "Don't understand lib type/arch flags! Please port!")))))
 
-;; Given a list of flags associated with a line from ldconfig -p, find me
-;; the library type the library is.
-(defun find-lib-type (split-flags)
-  (if (find "libc6" split-flags :test #'equalp)
-      "libc6"
-      (if (find "ELF" split-flags :test #'equalp)
-          "ELF"
-          (assert "Unknown lib type. Please port!~%"))))
 
-;; Given a list of flags associated with a line from the ldconfig -p, find
-;; me the specific architecture associated with the library.
-(defun find-lib-arch (split-flags)
-  (if (find "x86-64" split-flags :test #'equalp)
-      :x86-64
-      :x86))
-
-;; Take a line from the ldconfig -p output and merge it with the rest
-;; of the lines in the hashtable ht.
-(defun merge-ld.so.cache-line (bare-lib split-flags absolute-lib ht)
-  ;; Ensure the bare-lib has a hash table entry in the master table.
-  (when (null (gethash bare-lib ht))
-    (setf (gethash bare-lib ht) (make-hash-table :test #'equal)))
-
-  ;; The type of the library is either libc6 or ELF, but not both. So
-  ;; find out which one it is and set the type in the hash table value
-  ;; for the library in question. Ensure the type didn't change!
-  (let ((lib-type (find-lib-type split-flags))
-        (vht (gethash bare-lib ht)))
-    (let ((prev-lib-type (gethash :type vht)))
-      (if (null prev-lib-type)
-          (setf (gethash :type vht) lib-type)
-          (when (not (equal prev-lib-type lib-type))
-            (error "~A changed library type!" bare-lib)))))
-
-  ;; For each arch, if the value list doesn't exist, make one and
-  ;; insert it, otherwise insert the entry at the end of the list. We
-  ;; do it at the end because we're following the search order as
-  ;; found in order.
-  (let ((lib-arch (find-lib-arch split-flags))
-        (vht (gethash bare-lib ht)))
-    (let ((prev-lib-list (gethash lib-arch vht)))
-      (if (null prev-lib-list)
-          (setf (gethash lib-arch vht) (list absolute-lib))
-          (rplacd (last (gethash lib-arch vht)) (list absolute-lib))))))
-
-;; The result of this function is a hash table which contains entries
-;; about how to map bare library names to absolute paths as generated
-;; from ldconfig -p. If a library maps to more than one library in the same
-;; architecture, they are preserved in the order of discovery from left to
-;; right in the list.
-;;
-;; In a perl-ish dialect, you get:
-;; %hash = (
-;;   "libm.so.6" => (
-;;      :type => "libc6"
-;;      :X86-64 => ("/lib64/libm.so.6")
-;;      :X86 => ("/lib/tls/libm.so.6" "/lib/i686/libm.so.6" "/lib/libm.so.6")
-;;   )
-;;   "libGLU.so.1" => (
-;;      :type => "libc6"
-;;      :X86-64 => ("/usr/X11R6/lib64/libGLU.so.1" "/usr/lib64/libGLU.so.1")
-;;      :X86 => ("/usr/X11R6/lib/libGLU.so.1" "/usr/lib/libGLU.so.1")
-;;   )
-;; )
+;; The result of this function is a hash table whose keys are bare-lib names
+;; and values are ((flag-list) absolute-file-path) entries in discovery order
+;; from ldconfig -p.
 (defun parse-ld.so.cache (&key (program "/sbin/ldconfig") (args '("-p")))
   ;; Read all of the output of the program as lines.
   (let ((ht (make-hash-table :test #'equal))
         (lines (stream->string-list
-                (out-stream)
-                (sb-ext:process-close
-                 (sb-ext:run-program program args :output out-stream)))))
+                   (out-stream)
+                 (sb-ext:process-close
+                  (sb-ext:run-program program args :output out-stream)))))
 
-    ;; Pop the first line off, it is a count of libs and other junk
+    ;; Discard first line, it is a count of libs and other junk
     (pop lines)
 
     ;; Assemble the master hash table which condenses the ldconfig -p info
     ;; into a meaninful object upon which I can query.
     (dolist (line lines)
       (register-groups-bind
-       (bare-lib flags absolute-lib)
-       ("\\s*(.*)\\s+\\((.*)\\)\\s+=>\\s+(.*)\\s*" line)
+          (bare-lib flags absolute-lib)
+          ("\\s*(.*)\\s+\\((.*)\\)\\s+=>\\s+(.*)\\s*" line)
 
-       (let ((split-flags
-              (mapcar #'(lambda (str)
-                          (setf str (regex-replace "^\\s+" str ""))
-                          (regex-replace "\\s+$" str ""))
-                      (split "," flags))))
-         (merge-ld.so.cache-line bare-lib split-flags absolute-lib ht))))
+        (let ((split-flags
+               (canonicalize-flags
+                (mapcar #'(lambda (str)
+                            (setf str (regex-replace "^\\s+" str ""))
+                            (string-trim " " (regex-replace "\\s+$" str "")))
+                        (split "," flags)))))
+
+          ;; Insert the lib info into the database keyed by bare-lib.
+          (push (list split-flags absolute-lib) (gethash bare-lib ht)))))
+
+    ;; Now that the DB has been created, reverse all of the value
+    ;; lists so that the car of the list is the first thing found in
+    ;; the output of ldconfig -p.
+    (loop for key being the hash-keys in ht using (hash-value val) do
+         (setf (gethash key ht) (nreverse val)))
     ht))
 
-;; Convert a bare-lib into an absolute path depending upon
-;; architecture and whatnot. Either returns an absolute path, or nil.
-;;
-;; Can specify an ordering of :all, :first (the default), or :last.
-;; The ordering of :all will present the lirbaries in the order found
-;; out of the output for ldconfig -p.
-(defun query-ld.so.cache (bare-lib ht &key (ordering :first))
-  (let ((vht (gethash bare-lib ht)))
-    (if (null vht)
-        nil
-        (let ((all-absolute-libs (gethash (get-machine-type) vht)))
-          (ecase ordering
-            (:all
-             all-absolute-libs)
-            (:first
-             (car all-absolute-libs))
-            (:last
-             (last all-absolute-libs)))))))
+;; Convert a bare-lib into a absolute path taking things into consideration
+;; such as machine-type.
+(defun query-ld.so.cache (bare-lib the-machine-type ht)
+  (flet ((find-lib (the-machine-type the-list)
+           (find the-machine-type the-list
+                 :test (lambda (k v)
+                         (member k v
+                                 :test #'string-equal))
+                 :key #'car)))
+
+    (let ((vht (gethash bare-lib ht)))
+      (when vht
+        ;; Find the _first_ library with the specified machine-type
+        ;; TODO: FIx this to fallback onto an ELF version if it exists and
+        ;; I can't find anything else? See libaio.so.1 for example.
+        (let ((lib-spec (find-lib the-machine-type  vht)))
+          (cadr lib-spec))))))
 
 
 (defun mw-dump-exec (&key (exec-name "./a.out") ignore-libs remap-libs)
@@ -250,8 +206,10 @@
                   ;; convert the bare (hopefully) library to an
                   ;; absolute path.
                   (t
-                   (format t "looking up...")
-                   (let ((abs-lib (query-ld.so.cache namestring ld.so.cache)))
+                   (format t "looking up for machine-type ~S..." (machine-type))
+                   (let ((abs-lib
+                          (query-ld.so.cache namestring (machine-type)
+                                             ld.so.cache)))
                      (format t "found ~A..." abs-lib)
                      (format t "dumping...")
                      (copy-a-file abs-lib new-path))))
