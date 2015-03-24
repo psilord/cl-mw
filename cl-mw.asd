@@ -18,7 +18,7 @@
 
 (defsystem #:cl-mw
   :description "CL-MW: A Master/Slave Library"
-  :version "0.2"
+  :version "0.4"
   :author "Peter Keller <psilord@cs.wisc.edu>"
   :licence "Apache License, Version 2.0"
 
